@@ -13,54 +13,81 @@ except NameError:
     this = Path("audio_rnn.py").absolute()
 DATA_PATH = this.parent.parent / "data"
 
-file = DATA_PATH / "De-Bett.ogg"
-
+tf.reset_default_graph()
 
 def stft_graph(frame_length=512, frame_step=512 // 4):
     """Generate a Tensorflow stft calculation graph.
 
-    Return the input (signal) and output (spectrogram) nodes.
+    Generate a spectrogram computation graph for the energy
+    spectrogram of a signal. Return the input (signal) and output
+    (spectrogram) nodes.
+
     """
+    with tf.name_scope('spectrogram'):
+        # A batch of float32 time-domain signals in the range [-1, 1] with
+        # shape [batch_size, signal_length]. Both batch_size and signal_length
+        # may be unknown.
+        signal = tf.placeholder(tf.float32, [None, None])
 
-    # A batch of float32 time-domain signals in the range [-1, 1] with
-    # shape [batch_size, signal_length]. Both batch_size and signal_length
-    # may be unknown.
-    signal = tf.placeholder(tf.float32, [None, None])
-
-    # `magnitude_spectrograms` is a [batch_size, ?, 129] tensor of
-    # spectrograms. We would like to produce overlapping fixed-size
-    # spectrogram patches; for example, for use in a situation where a
-    # fixed size input is needed.
-    magnitude_spectrograms = tf.abs(tf.contrib.signal.stft(
-        signal,
-        frame_length=frame_length,
-        # Periodic Hann is the default window
-        frame_step=frame_step))
-    log_spectrum = tf.log(magnitude_spectrograms + 1e-8)
-    normalized = log_spectrum - tf.reduce_max(log_spectrum)
-    return signal, magnitude_spectrograms
+        # `magnitude_spectrograms` is a [batch_size, ?, frame_length
+        # // 2 + 1] tensor of spectrograms. We would like to produce
+        # overlapping fixed-size spectrogram patches.
+        magnitude_spectrograms = tf.abs(tf.contrib.signal.stft(
+            signal,
+            frame_length=frame_length,
+            # Periodic Hann is the default window
+            frame_step=frame_step))
+        # Define tensor operations in case we want logarithmic
+        # spectrograms instead of linear ones.
+        log_spectrum = tf.log(magnitude_spectrograms + 1e-8)
+        normalized = log_spectrum - tf.reduce_max(log_spectrum)
+        return signal, magnitude_spectrograms
 
 
-batch_size = 1
-spectrogram_size = 257
-n_cell_dim = 257
-tf.reset_default_graph()
+def lstm_network(batch_size=1, spectrogram_size=257, n_cell_dim=257):
+    """Generate a Tensorflow RNN calculation graph.
 
-with tf.name_scope('lstm'):
-    lstm_bw_cell = tf.contrib.rnn.BasicLSTMCell(
-        n_cell_dim, forget_bias=1.0, state_is_tuple=True)
-    spectrum = tf.placeholder(tf.float32, [None, None, spectrogram_size])
-    outputs, state = tf.nn.dynamic_rnn(
-        lstm_bw_cell, spectrum,
-        dtype=tf.float32)
-    output = tf.contrib.layers.fully_connected(
-        inputs=outputs, num_outputs=spectrogram_size)
-    expected_spectrum = tf.placeholder(
-        tf.float32, [None, None, spectrogram_size])
-    loss = tf.reduce_mean(tf.square(output - expected_spectrum))
+    Generate a calculation graph mapping a spectrogram of size (in the
+    frequency axis) `spectrogram_size`, i.e. of shape [batch_size,
+    sample_size, spectrogram_size] to an expected spectrogram of the
+    same shape, using an LSTM RNN.
+
+    Return the input, expected-output, output and loss tensors.
+    """
+    with tf.name_scope('lstm'):
+        lstm_bw_cell = tf.contrib.rnn.BasicLSTMCell(
+            n_cell_dim, forget_bias=1.0, state_is_tuple=True)
+        spectrum = tf.placeholder(tf.float32, [None, None, spectrogram_size])
+        outputs, state = tf.nn.dynamic_rnn(
+            lstm_bw_cell, spectrum,
+            dtype=tf.float32)
+        output = tf.contrib.layers.fully_connected(
+            inputs=outputs, num_outputs=spectrogram_size)
+        expected_spectrum = tf.placeholder(
+            tf.float32, [None, None, spectrogram_size])
+        loss = tf.reduce_mean(tf.square(output - expected_spectrum))
+    return spectrum, expected_spectrum, output, loss
 
 
 def plot(spectrograms, transcription):
+    """Plot one or more spectrograms in compatible axis.
+
+    Parameters
+    ----------
+    spectrograms: sequence of 2d-arrays
+      The spectrogram to be plotted
+    transcription: string
+      The figure's title
+
+    Returns
+    -------
+    Nothing
+
+    Side-Effects
+    ------------
+    Opens a window with the plots
+    """
+    plt.subplot(len(spectrograms), 1, 1)
     plt.title(transcription)
     for i, spectrogram in enumerate(spectrograms):
         plt.subplot(len(spectrograms), 1, i + 1)
@@ -71,11 +98,13 @@ def plot(spectrograms, transcription):
 
 
 signal, magnitude_spectrograms = stft_graph()
+spectrum, expected_spectrum, output, loss = lstm_network()
 
 optimizer = tf.train.AdamOptimizer(1e-3).minimize(loss)
 with tf.Session() as session:
     session.run(tf.global_variables_initializer())
 
+    # Load the data
     data = []
     transcriptions = []
 
@@ -98,7 +127,7 @@ with tf.Session() as session:
 
         data.append(spectrograms)
 
-    _loss = numpy.inf
+    # Learn the network
     i = 0
     for i in range(1000):
         for spectrogram in spectrograms:
@@ -111,6 +140,7 @@ with tf.Session() as session:
         print(i, _loss)
         i += 1
 
+    # Plot the results
     for spectrogram in data:
             _spectrum, _expected_spectrum, _output = session.run(
                 [spectrum, expected_spectrum, output],
@@ -118,5 +148,3 @@ with tf.Session() as session:
                     spectrum: spectrogram,
                     expected_spectrum: spectrogram})
             plot([_spectrum[0], _expected_spectrum[0], _output[0]], "")
-
-
