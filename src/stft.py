@@ -7,8 +7,6 @@ import numpy
 import matplotlib.pyplot as plt
 import bisect
 
-tf.reset_default_graph()
-
 try:
     this = Path(__file__)
 except NameError:
@@ -38,13 +36,16 @@ def stft_graph(frame_length=512, frame_step=512 // 4):
         frame_length=frame_length,
         # Periodic Hann is the default window
         frame_step=frame_step))
-    log_spec = tf.log(magnitude_spectrograms + tf.constant(1e-8))
+    log_spectrum = tf.log(magnitude_spectrograms + 1e-8)
+    normalized = log_spectrum - tf.reduce_max(log_spectrum)
     return signal, magnitude_spectrograms
 
 
 batch_size = 1
 spectrogram_size = 257
-n_cell_dim = 129
+n_cell_dim = 257
+tf.reset_default_graph()
+
 with tf.name_scope('lstm'):
     lstm_bw_cell = tf.contrib.rnn.BasicLSTMCell(
         n_cell_dim, forget_bias=1.0, state_is_tuple=True)
@@ -69,42 +70,24 @@ def plot(spectrograms, transcription):
     plt.show()
 
 
-with tf.Session() as session:
-    signal, magnitude_spectrograms = stft_graph()
-    for i, file in enumerate(DATA_PATH.glob("*.ogg")):
-        if i > 0:
-            break
-        transcription = file.with_suffix(".txt").open().read()
-        data, samplerate = sf.read(file.open("rb"))
-
-        if len(data.shape) > 1 and data.shape[1] == 2:
-            data = data[0]
-
-        spectrograms = session.run(
-            magnitude_spectrograms,
-            feed_dict={signal: [data]})
-        for spectrogram in spectrograms:
-            plot([spectrogram], transcription)
-
-with tf.Session() as session:
-    session.run(tf.initialize_all_variables())
-    x = session.run(
-        output,
-        feed_dict={spectrum: [spectrogram]})
-    print(x)
+signal, magnitude_spectrograms = stft_graph()
 
 optimizer = tf.train.AdamOptimizer(1e-3).minimize(loss)
-
 with tf.Session() as session:
-    session.run(tf.initialize_all_variables())
+    session.run(tf.global_variables_initializer())
+
     data = []
     transcriptions = []
+
     for i, file in enumerate(DATA_PATH.glob("*.ogg")):
-        if i > 50:
+        if len(data) > 50:
             break
-        transcriptions.append(file.with_suffix(".txt").open().read())
         blob, samplerate = sf.read(file.open("rb"))
         # We should re-sample if the sample rate is abnormal
+        if samplerate != 44100:
+            print(file, "dropped: Incompatible sample rate", samplerate)
+            continue
+        transcriptions.append(file.with_suffix(".txt").open().read())
 
         if len(blob.shape) > 1 and blob.shape[1] == 2:
             blob = blob[:, 0]
@@ -115,9 +98,9 @@ with tf.Session() as session:
 
         data.append(spectrograms)
 
-    _loss = 1
+    _loss = numpy.inf
     i = 0
-    while _loss > 1e-3:
+    for i in range(1000):
         for spectrogram in spectrograms:
             _loss, _spectrum, _expected_spectrum, _output, _ = session.run(
                 [loss, spectrum, expected_spectrum, output, optimizer],
@@ -127,3 +110,13 @@ with tf.Session() as session:
                 })
         print(i, _loss)
         i += 1
+
+    for spectrogram in data:
+            _spectrum, _expected_spectrum, _output = session.run(
+                [spectrum, expected_spectrum, output],
+                feed_dict={
+                    spectrum: spectrogram,
+                    expected_spectrum: spectrogram})
+            plot([_spectrum[0], _expected_spectrum[0], _output[0]], "")
+
+
