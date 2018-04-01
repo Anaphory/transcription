@@ -15,7 +15,8 @@ DATA_PATH = this.parent.parent / "data"
 
 tf.reset_default_graph()
 
-def stft_graph(frame_length=512, frame_step=512 // 4):
+
+def stft_graph(frame_length=256, frame_step=256 // 4):
     """Generate a Tensorflow stft calculation graph.
 
     Generate a spectrogram computation graph for the energy
@@ -44,7 +45,7 @@ def stft_graph(frame_length=512, frame_step=512 // 4):
         return signal, magnitude_spectrograms
 
 
-def lstm_network(batch_size=1, spectrogram_size=257, n_cell_dim=257):
+def lstm_network(batch_size=1, spectrogram_size=129, n_hidden=65):
     """Generate a Tensorflow RNN calculation graph.
 
     Generate a calculation graph mapping a spectrogram of size (in the
@@ -56,7 +57,7 @@ def lstm_network(batch_size=1, spectrogram_size=257, n_cell_dim=257):
     """
     with tf.name_scope('lstm'):
         lstm_bw_cell = tf.contrib.rnn.BasicLSTMCell(
-            n_cell_dim, forget_bias=1.0, state_is_tuple=True)
+            n_hidden, forget_bias=1.0, state_is_tuple=True)
         spectrum = tf.placeholder(tf.float32, [None, None, spectrogram_size])
         outputs, state = tf.nn.dynamic_rnn(
             lstm_bw_cell, spectrum,
@@ -69,7 +70,8 @@ def lstm_network(batch_size=1, spectrogram_size=257, n_cell_dim=257):
     return spectrum, expected_spectrum, output, loss
 
 
-def plot(spectrograms, transcription):
+def plot(spectrograms, transcription, samplerate=44100,
+         transform=lambda x: numpy.log(x + 1e-8), steps=256 // 4):
     """Plot one or more spectrograms in compatible axis.
 
     Parameters
@@ -89,62 +91,65 @@ def plot(spectrograms, transcription):
     """
     plt.subplot(len(spectrograms), 1, 1)
     plt.title(transcription)
+    vmin = transform(numpy.min(spectrograms))
+    vmax = transform(numpy.max(spectrograms))
     for i, spectrogram in enumerate(spectrograms):
+        spectrogram = transform(spectrogram)
         plt.subplot(len(spectrograms), 1, i + 1)
         plt.imshow(spectrogram.T[::-1], aspect="auto",
-                   extent=[0, len(spectrogram) / samplerate * 128,
-                           0, 256 * samplerate])
+                   vmin=vmin, vmax=vmax,
+                   extent=[0, len(spectrogram) / samplerate * steps,
+                           0, samplerate / spectrogram.shape[1]])
     plt.show()
 
-
 signal, magnitude_spectrograms = stft_graph()
-spectrum, expected_spectrum, output, loss = lstm_network()
+spectrum, expected_spectrum, output, loss = lstm_network(n_hidden=33)
 
 optimizer = tf.train.AdamOptimizer(1e-3).minimize(loss)
-with tf.Session() as session:
-    session.run(tf.global_variables_initializer())
+session = tf.InteractiveSession()
 
-    # Load the data
-    data = []
-    transcriptions = []
+session.run(tf.global_variables_initializer())
 
-    for i, file in enumerate(DATA_PATH.glob("*.ogg")):
-        if len(data) > 50:
-            break
-        blob, samplerate = sf.read(file.open("rb"))
-        # We should re-sample if the sample rate is abnormal
-        if samplerate != 44100:
-            print(file, "dropped: Incompatible sample rate", samplerate)
-            continue
-        transcriptions.append(file.with_suffix(".txt").open().read())
+# Load the data
+data = []
+transcriptions = []
 
-        if len(blob.shape) > 1 and blob.shape[1] == 2:
-            blob = blob[:, 0]
+for i, file in enumerate(DATA_PATH.glob("*.ogg")):
+    if len(data) > 50:
+        break
+    blob, samplerate = sf.read(file.open("rb"))
+    # We should re-sample if the sample rate is abnormal
+    if samplerate != 44100:
+        print(file, "dropped: Incompatible sample rate", samplerate)
+        continue
+    transcriptions.append(file.with_suffix(".txt").open().read())
 
-        spectrograms = session.run(
-            magnitude_spectrograms,
-            feed_dict={signal: [blob]})
+    if len(blob.shape) > 1 and blob.shape[1] == 2:
+        blob = blob[:, 0]
 
-        data.append(spectrograms)
+    spectrograms = session.run(
+        magnitude_spectrograms,
+        feed_dict={signal: [blob]})
 
-    # Learn the network
-    i = 0
-    for i in range(1000):
-        for spectrogram in spectrograms:
-            _loss, _spectrum, _expected_spectrum, _output, _ = session.run(
-                [loss, spectrum, expected_spectrum, output, optimizer],
-                feed_dict={
-                    spectrum: spectrograms,
-                    expected_spectrum: spectrograms
-                })
-        print(i, _loss)
-        i += 1
+    data.append(spectrograms)
 
-    # Plot the results
-    for spectrogram in data:
-            _spectrum, _expected_spectrum, _output = session.run(
-                [spectrum, expected_spectrum, output],
-                feed_dict={
-                    spectrum: spectrogram,
-                    expected_spectrum: spectrogram})
-            plot([_spectrum[0], _expected_spectrum[0], _output[0]], "")
+# Learn the network
+epoch = 0
+for epoch in range(512):
+    for spectrogram in spectrograms:
+        _loss, _spectrum, _expected_spectrum, _output, _ = session.run(
+            [loss, spectrum, expected_spectrum, output, optimizer],
+            feed_dict={
+                spectrum: spectrograms,
+                expected_spectrum: spectrograms
+            })
+    print(epoch, _loss)
+
+# Plot the results
+for spectrogram in data:
+    _spectrum, _expected_spectrum, _output = session.run(
+        [spectrum, expected_spectrum, output],
+        feed_dict={
+            spectrum: spectrogram,
+            expected_spectrum: spectrogram})
+    plot([_spectrum[0], _expected_spectrum[0], _output[0]], "")
