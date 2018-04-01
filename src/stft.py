@@ -114,6 +114,31 @@ session.run(tf.global_variables_initializer())
 data = []
 transcriptions = []
 
+
+def input_and_target(original, shift):
+    """Generate input and target data from original.
+
+    If shift == 0, input and target are identical (eg. for compression
+    learning).  If shift > 0, target is ahead of input, so the network
+    is taught to predict future samples.  If shift < 0, target is
+    behind input, so the network is taught to remember past samples.
+
+    """
+    if shift == 0:
+        return original, original
+    elif shift > 0:
+        input = original[:-shift]
+        target = original[shift:]
+    else:
+        original = numpy.asarray(original)
+        shape = list(original.shape)
+        shape[0] = -shift
+        padding = numpy.zeros(shape)
+        input = numpy.concatenate((original, padding))
+        target = numpy.concatenate((padding, original))
+    return input, target
+
+
 for i, file in enumerate(DATA_PATH.glob("*.ogg")):
     if len(data) > 50:
         break
@@ -134,22 +159,23 @@ for i, file in enumerate(DATA_PATH.glob("*.ogg")):
     data.append(spectrograms)
 
 # Learn the network
-epoch = 0
 for epoch in range(512):
     for spectrogram in spectrograms:
+        input, target = input_and_target(spectrogram, 0)
         _loss, _spectrum, _expected_spectrum, _output, _ = session.run(
             [loss, spectrum, expected_spectrum, output, optimizer],
             feed_dict={
-                spectrum: spectrograms,
-                expected_spectrum: spectrograms
-            })
+                spectrum: [input],
+                expected_spectrum: [target]})
     print(epoch, _loss)
 
 # Plot the results
-for spectrogram in data:
+for spectrogram, trs in zip(data, transcriptions):
     _spectrum, _expected_spectrum, _output = session.run(
         [spectrum, expected_spectrum, output],
         feed_dict={
             spectrum: spectrogram,
             expected_spectrum: spectrogram})
-    plot([_spectrum[0], _expected_spectrum[0], _output[0]], "")
+    plot([_spectrum[0], _expected_spectrum[0], _output[0]], trs,
+         transform=lambda x: x)
+    break
