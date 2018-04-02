@@ -78,13 +78,14 @@ def lstm_network(batch_size=1, spectrogram_size=513, n_hidden=65,
 
 def transcriber_network(hidden, n_classes):
     phonemes = tf.placeholder(tf.int16,
-                              [None, None])
+                              [None, None, n_classes])
     output = tf.contrib.layers.fully_connected(
         inputs=hidden, num_outputs=n_classes)
-    loss = tf.nn.softmax_cross_entropy_with_logits(
-        logits=output,
+    softmax = tf.nn.softmax(output)
+    loss = tf.nn.softmax_cross_entropy_with_logits_v2(
+        logits=softmax,
         labels=phonemes)
-    return phonemes, output, loss
+    return phonemes, output, tf.reduce_mean(loss)
 
 
 def plot(spectrograms, transcription, samplerate=44100,
@@ -162,8 +163,12 @@ def input_and_target(original, shift):
     if shift == 0:
         return original, original
     elif shift > 0:
-        input = original[:-shift]
-        target = original[shift:]
+        original = numpy.asarray(original)
+        shape = list(original.shape)
+        shape[0] = shift
+        padding = numpy.zeros(shape)
+        input = numpy.concatenate((padding, original))
+        target = numpy.concatenate((original, padding))
     else:
         original = numpy.asarray(original)
         shape = list(original.shape)
@@ -175,7 +180,7 @@ def input_and_target(original, shift):
 
 
 for i, file in enumerate(DATA_PATH.glob("*.ogg")):
-    if len(data) > 150:
+    if len(data) > 500:
         break
     blob, samplerate = sf.read(file.open("rb"))
     # We should re-sample if the sample rate is abnormal
@@ -225,7 +230,7 @@ for input, target, trs in zip(inputs, targets, transcriptions):
 ttrs = []
 data = []
 for i, textgrid_file in enumerate((DATA_PATH / "emu").glob("*.txt")):
-    if len(data) > 10:
+    if len(data) > 100:
         break
     file = textgrid_file.with_suffix(".wav")
     blob, samplerate = sf.read(file.open("rb"))
@@ -237,34 +242,59 @@ for i, textgrid_file in enumerate((DATA_PATH / "emu").glob("*.txt")):
     if len(blob.shape) > 1 and blob.shape[1] == 2:
         blob = blob[:, 0]
 
-    spectrograms = session.run(
+    spectrogram = session.run(
         magnitude_spectrograms,
         feed_dict={signal: [blob]})
 
-    timed_transcription = numpy.zeros(len(spectrogram[0]), dtype=numpy.int16)
+    spectrogram = spectrogram[0]
+    
+    timed_transcription = numpy.zeros((len(spectrogram), len(labels)),
+                                      dtype=numpy.int16)
     textgrid = read_textgrid.TextGrid(textgrid_file.open().read())
     for start, end, phone in textgrid.tiers[0].simple_transcript:
-        int_start = round(float(start) / textgrid.t_time * len(timed_transcription))
-        int_end = round(float(end) / textgrid.t_time * len(timed_transcription))
-        timed_transcription[int_start:int_end] = labels.get(phone, labels["?"])
+        int_start = round(float(start) / textgrid.t_time *
+                          len(timed_transcription))
+        int_end = round(float(end) / textgrid.t_time *
+                        len(timed_transcription))
+        if labels.get(phone):
+            timed_transcription[int_start:int_end, labels[phone]] = 1
         
     ttrs.append(timed_transcription)
-    data.append(spectrograms)
+    data.append(spectrogram)
 
-for spectrogram in data:
-    input, target = input_and_target(spectrogram[0], shift)
+inputs = []
+targets = []
+for i, spectrogram in enumerate(data):
+    input, target = input_and_target(spectrogram, shift)
     inputs.append(input)
     targets.append(target)
+    ttrs[i], _ = input_and_target(ttrs[i], shift)
 
 # Learn the network
 for epoch in range(200):
     for input, target, ttr in zip(inputs, targets, ttrs):
-        _loss, _spectrum, _expected_spectrum, _output, _ = session.run(
-            [loss, spectrum, expected_spectrum, output, phon_optimizer],
+        _loss, _logit_loss, _spectrum, _expected_spectrum, _output, _ = session.run(
+            [loss, logit_loss, spectrum, expected_spectrum, output, phon_optimizer],
             feed_dict={
                 spectrum: [input],
                 expected_spectrum: [target],
                 phonemes: [ttr],
                 })
-    print(epoch, _loss)
+    print(epoch, _loss, _logit_loss)
 
+
+unlabel = numpy.array(list(labels.keys()))
+for input, target, ttr in zip(inputs, targets, ttrs):
+    print()
+    _inferred_classes = session.run(
+        [inferred_classes],
+        feed_dict={
+            spectrum: [input],
+            phonemes: [ttr]})
+
+    prediction = unlabel[_inferred_classes[0][0].argmax(1)]
+    original = unlabel[ttr.argmax(1)]
+    print("".join("{:3s}".format(x) for x in original))
+    print("".join("{:3s}".format(x) for x in prediction))
+    print("".join(x for x, y in zip(original, original[1:]) if x!=y))
+    print("".join(x for x, y in zip(prediction, prediction[1:]) if x!=y))
