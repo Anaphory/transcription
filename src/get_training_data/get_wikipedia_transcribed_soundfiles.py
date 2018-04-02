@@ -110,3 +110,56 @@ for article in articles:
             with open(PATH / (name[:-4] + ".txt"),
                       "w") as localtxtfile:
                 localtxtfile.write(transcription)
+
+page = "https://en.wikipedia.org/wiki/Special:WhatLinksHere/Template:IPA_audio_link"
+articles = set()
+while True:
+    with urllib.request.urlopen(page) as v:
+        soup = BeautifulSoup(v.read())
+    try:
+        page = "https://en.wikipedia.org" + [
+            a for a in soup.find_all("a")
+            if "next" in a.text][0]["href"]
+    except IndexError:
+        break
+    articles |= set(a.get("href") for a in soup.find_all("a")
+                if a.get("href") and a.get("href").startswith("/wiki/"))
+
+print(articles)
+
+for article in articles:
+    with urllib.request.urlopen(
+            URL_TEMPLATE.format(page=article[1:])) as v:
+        article_soup = BeautifulSoup(v.read())
+    try:
+        ipa = consonant_soup.find_all("span", class_="IPA")[0].text
+    except IndexError:
+        continue
+    print(article)
+    for link in consonant_soup.find_all("a"):
+        address = link.get("href")
+        if link.text == "source" and fileurl.match(address):
+            transcription = ipa
+            address = download_url_from_filename(address)
+        elif ipastring.match(link.text) and uploadurl.match(address):
+            transcription = link.text[1:-1]
+        else:
+            continue
+        with urllib.request.urlopen(
+                "https:" + address) as remoteoggfile:
+            name = Path(address).name
+            with open(PATH / name, "wb") as localoggfile:
+                localoggfile.write(remoteoggfile.read())
+            with open(PATH / (name[:-4] + ".txt"),
+                      "w") as localtxtfile:
+                localtxtfile.write(transcription)
+
+
+
+
+
+
+
+
+
+
