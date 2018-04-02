@@ -16,7 +16,7 @@ DATA_PATH = this.parent.parent / "data"
 tf.reset_default_graph()
 
 
-def stft_graph(frame_length=256, frame_step=256 // 4):
+def stft_graph(frame_length=1024, frame_step=128):
     """Generate a Tensorflow stft calculation graph.
 
     Generate a spectrogram computation graph for the energy
@@ -41,11 +41,11 @@ def stft_graph(frame_length=256, frame_step=256 // 4):
         # Define tensor operations in case we want logarithmic
         # spectrograms instead of linear ones.
         log_spectrum = tf.log(magnitude_spectrograms + 1e-8)
-        normalized = log_spectrum - tf.reduce_max(log_spectrum)
-        return signal, magnitude_spectrograms
+        normalized = magnitude_spectrograms / tf.reduce_max(log_spectrum)
+        return signal, normalized
 
 
-def lstm_network(batch_size=1, spectrogram_size=129, n_hidden=65):
+def lstm_network(batch_size=1, spectrogram_size=513, n_hidden=65):
     """Generate a Tensorflow RNN calculation graph.
 
     Generate a calculation graph mapping a spectrogram of size (in the
@@ -70,8 +70,15 @@ def lstm_network(batch_size=1, spectrogram_size=129, n_hidden=65):
     return spectrum, expected_spectrum, output, loss
 
 
+def transcriber(batch_size=1, spectrogram_size=513, n_hidden=65):
+    spectrum, expected_spectrum, output, loss = lstm_network(
+        batch_size=batch_size,
+        spectrogram_size=spectrogram_size,
+        n_hidden=n_hidden)
+
+
 def plot(spectrograms, transcription, samplerate=44100,
-         transform=lambda x: numpy.log(x + 1e-8), steps=256 // 4):
+         transform=lambda x: numpy.log(x + 1e-8), steps=128):
     """Plot one or more spectrograms in compatible axis.
 
     Parameters
@@ -99,7 +106,7 @@ def plot(spectrograms, transcription, samplerate=44100,
         plt.imshow(spectrogram.T[::-1], aspect="auto",
                    vmin=vmin, vmax=vmax,
                    extent=[0, len(spectrogram) / samplerate * steps,
-                           0, samplerate / spectrogram.shape[1]])
+                           0, samplerate / 2])
     plt.show()
 
 signal, magnitude_spectrograms = stft_graph()
@@ -140,11 +147,11 @@ def input_and_target(original, shift):
 
 
 for i, file in enumerate(DATA_PATH.glob("*.ogg")):
-    if len(data) > 50:
+    if len(data) > 150:
         break
     blob, samplerate = sf.read(file.open("rb"))
     # We should re-sample if the sample rate is abnormal
-    if samplerate != 44100:
+    if samplerate != 44100 and samplerate != 44000:
         print(file, "dropped: Incompatible sample rate", samplerate)
         continue
     transcriptions.append(file.with_suffix(".txt").open().read())
@@ -158,10 +165,17 @@ for i, file in enumerate(DATA_PATH.glob("*.ogg")):
 
     data.append(spectrograms)
 
+shift = 1
+inputs = []
+targets = []
+for spectrogram in data:
+    input, target = input_and_target(spectrogram[0], shift)
+    inputs.append(input)
+    targets.append(target)
+    
 # Learn the network
-for epoch in range(512):
-    for spectrogram in spectrograms:
-        input, target = input_and_target(spectrogram, 0)
+for epoch in range(200):
+    for input, target in zip(inputs, targets):
         _loss, _spectrum, _expected_spectrum, _output, _ = session.run(
             [loss, spectrum, expected_spectrum, output, optimizer],
             feed_dict={
@@ -170,12 +184,12 @@ for epoch in range(512):
     print(epoch, _loss)
 
 # Plot the results
-for spectrogram, trs in zip(data, transcriptions):
+for input, target, trs in zip(inputs, targets, transcriptions):
     _spectrum, _expected_spectrum, _output = session.run(
         [spectrum, expected_spectrum, output],
         feed_dict={
-            spectrum: spectrogram,
-            expected_spectrum: spectrogram})
+            spectrum: [input],
+            expected_spectrum: [target]})
     plot([_spectrum[0], _expected_spectrum[0], _output[0]], trs,
-         transform=lambda x: x)
+         transform=lambda x: x**0.5)
     break
