@@ -26,6 +26,10 @@ def stft_graph(frame_length=1024, frame_step=128):
     (spectrogram) nodes.
 
     """
+    # TODO: It would be nice if this function could take a `framerate`
+    # argument, which is fed into a calculation node, and build a
+    # normalized spectrogram for a default frame rate equivalent
+    # spectrogram.
     with tf.name_scope('spectrogram'):
         # A batch of float32 time-domain signals in the range [-1, 1] with
         # shape [batch_size, signal_length]. Both batch_size and signal_length
@@ -76,11 +80,14 @@ def lstm_network(batch_size=1, spectrogram_size=513, n_hidden=65,
         return spectrum, expected_spectrum, output, loss
 
 
-def transcriber_network(hidden, n_classes):
+def transcriber_network(hidden, input, n_classes):
     phonemes = tf.placeholder(tf.int16,
                               [None, None, n_classes])
-    output = tf.contrib.layers.fully_connected(
+    output1 = tf.contrib.layers.fully_connected(
         inputs=hidden, num_outputs=n_classes)
+    output2 = tf.contrib.layers.fully_connected(
+        inputs=input, num_outputs=n_classes)
+    output = output1 + output2
     softmax = tf.nn.softmax(output)
     loss = tf.nn.softmax_cross_entropy_with_logits_v2(
         logits=softmax,
@@ -138,7 +145,8 @@ labels["?"] = len(labels)
 signal, magnitude_spectrograms = stft_graph()
 spectrum, expected_spectrum, output, loss, hidden = lstm_network(
     n_hidden=33, return_hidden=True)
-phonemes, inferred_classes, logit_loss = transcriber_network(hidden, len(labels))
+phonemes, inferred_classes, logit_loss = transcriber_network(
+    hidden, spectrum, len(labels))
 
 optimizer = tf.train.AdamOptimizer(1e-3).minimize(loss)
 phon_optimizer = tf.train.AdamOptimizer(1e-3).minimize(logit_loss)
