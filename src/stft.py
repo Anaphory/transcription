@@ -188,8 +188,6 @@ def input_and_target(original, shift):
 
 
 for i, file in enumerate(DATA_PATH.glob("*.ogg")):
-    if len(data) > 500:
-        break
     blob, samplerate = sf.read(file.open("rb"))
     # We should re-sample if the sample rate is abnormal
     if samplerate != 44100 and samplerate != 44000:
@@ -231,15 +229,13 @@ for input, target, trs in zip(inputs, targets, transcriptions):
         feed_dict={
             spectrum: [input],
             expected_spectrum: [target]})
+    break
     plot([_spectrum[0], _expected_spectrum[0], _output[0]], trs,
          transform=lambda x: x**0.5)
-    break
 
 ttrs = []
 data = []
 for i, textgrid_file in enumerate((DATA_PATH / "emu").glob("*.txt")):
-    if len(data) > 100:
-        break
     file = textgrid_file.with_suffix(".wav")
     blob, samplerate = sf.read(file.open("rb"))
     # We should re-sample if the sample rate is abnormal
@@ -279,7 +275,7 @@ for i, spectrogram in enumerate(data):
     ttrs[i], _ = input_and_target(ttrs[i], shift)
 
 # Learn the network
-for epoch in range(200):
+for epoch in range(400):
     for input, target, ttr in zip(inputs, targets, ttrs):
         _loss, _logit_loss, _spectrum, _expected_spectrum, _output, _ = session.run(
             [loss, logit_loss, spectrum, expected_spectrum, output, phon_optimizer],

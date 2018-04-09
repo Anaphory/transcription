@@ -190,6 +190,7 @@ class TextGrid(object):
             (begin, end) = iterator.span()
             tier_info = self.read_file[begin:end]
             tiers.append(Tier(tier_info, self.text_type, self.t_time))
+        # This should probably actually be a named tuple
         return tiers
     
     def _check_type(self):
@@ -398,6 +399,7 @@ class Tier(object):
             trans_xmin = ""
         trans_m = re.compile(trans_head + trans_xmin + trans_xmax + trans_text)
         self.simple_transcript = trans_m.findall(self.transcript)
+        # This could do with a conversion to numbers
         return self.simple_transcript
 
     def transcript(self):

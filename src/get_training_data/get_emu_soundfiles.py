@@ -4,6 +4,8 @@ import shutil
 
 emupath = Path("/home/gereon/Downloads/emu")
 
+transcription = {
+    }
 
 def parse_lab_file_to_praat_textgrid(lab_file, audio_length):
     blobs = ""
@@ -19,6 +21,7 @@ def parse_lab_file_to_praat_textgrid(lab_file, audio_length):
             assert line == "#"
         else:
             start, _, phone = line.split()
+            phone = transcription.get(phone, phone)
             start = float(start)
             blobs += '''
       intervals [{no:}]:
@@ -61,7 +64,7 @@ for corpus in (emupath / "corpora").glob("*"):
             for possible_label_file in corpus.glob(
                     "**/{:}.*".format(wav_file.stem)):
                 if possible_label_file.suffix in (".lab", ".ph"):
-                    (target / (wav_file.stem + ".txt")).open("w").write(
+                    (target / (wav_file.stem + ".textgrid")).open("w").write(
                         parse_lab_file_to_praat_textgrid(
                             possible_label_file,
                             len(d) / fr))
