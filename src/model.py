@@ -59,5 +59,5 @@ def lstm_network(input_spectrum, batch_size=1, spectrogram_size=513, n_hidden=65
             log_mel_cepstrogram(expected_lookbehind_spectrum)))
 
         loss = ahead_deviation + behind_deviation
-    return outputs, loss
+    return outputs, loss, lookahead_output, lookbehind_output
 

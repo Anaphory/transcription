@@ -6,7 +6,9 @@ import tensorflow as tf
 
 dataset = audio_dataset.padded_batch(5, padded_shapes=[None])
 
-iterator = dataset.make_one_shot_iterator()
+iterator = tf.data.Iterator.from_structure(dataset.output_types,
+                                           dataset.output_shapes)
+
 signals = iterator.get_next()
 
 magnitude_spectrograms = tf.abs(tf.contrib.signal.stft(
@@ -15,20 +17,34 @@ magnitude_spectrograms = tf.abs(tf.contrib.signal.stft(
             # Periodic Hann is the default window
             frame_step=128)) # 6.4 ms
 
-output, loss = lstm_network(magnitude_spectrograms)
+output, loss, ahead, behind = lstm_network(magnitude_spectrograms)
 
 train_op = tf.train.AdamOptimizer(1e-3).minimize(loss)
 
-init_op = tf.initialize_all_variables()
+init_op = tf.global_variables_initializer()
+
+training_iterator = iterator.make_initializer(dataset)
+validation_iterator = iterator.make_initializer(dataset)
 
 with tf.Session() as sess:
     sess.run(init_op)
 
+    sess.run(training_iterator)
     while True:
         try:
             sess.run(train_op)
         except tf.errors.OutOfRangeError:
             break
+
+    sess.run(validation_iterator)
+    while True:
+        try:
+            ahead_sound, behind_sound = sess.run([ahead, behind])
+            # invert stft
+        except tf.errors.OutOfRangeError:
+            break
+
+
 
 
 
