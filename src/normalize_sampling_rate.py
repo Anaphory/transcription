@@ -51,10 +51,16 @@ def normalize_sampling_rate_windowed(signal, original_rate,
     for start in range(0, len(signal), blocksize):
         signal_block = signal[start: start + blocksize]
         length = int((start + len(signal_block)) *
-                     original_rate / normal_rate + 0.5) - output_signal_length
-        output_signal_blocks.append(
-            resample(signal_block, length))
-        output_signal_length += length
+                     normal_rate / original_rate + 0.5) - output_signal_length
+        if not len(signal_block) or not length:
+            continue
+        if length < 4:
+            output_signal_blocks.append(signal_block)
+            output_signal_length += len(signal_block)
+        else:
+            output_signal_blocks.append(
+                resample(signal_block, length))
+            output_signal_length += length
 
     if overlap:
         shifted = normalize_sampling_rate_windowed(

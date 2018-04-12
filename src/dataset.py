@@ -89,13 +89,16 @@ def clean(sound):
 
 
 def read_wavfile():
-    for file in itertools.chain(DATA_PATH.glob("**/*.ogg"),
-                                DATA_PATH.glob("**/*.wav")):
+    for file in itertools.chain(DATA_PATH.glob("**/V*.ogg"),
+                                DATA_PATH.glob("**/aa*.wav")):
         waveform, samplerate = sf.read(file.open("rb"))
         if len(waveform.shape) > 1:
             waveform = waveform[:, 1]
         waveform = normalize_sampling_rate(waveform, samplerate)
 
+        if not len(waveform):
+            continue
+        print(file)
         yield waveform
 
 
@@ -132,6 +135,8 @@ def read_wavfile_and_annotation():
         if len(waveform.shape) > 1:
             waveform = waveform[:, 1]
         waveform = normalize_sampling_rate(waveform, samplerate)
+        if not len(waveform):
+            continue
 
         if segments:
             yield waveform, segments

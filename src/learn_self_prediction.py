@@ -4,6 +4,10 @@ from dataset import audio_dataset
 from model import lstm_network
 import tensorflow as tf
 
+import matplotlib.pyplot as plt
+from build_signal import signal_from_norm_stft
+import soundfile as sf
+
 dataset = audio_dataset.padded_batch(5, padded_shapes=[None])
 
 iterator = tf.data.Iterator.from_structure(dataset.output_types,
@@ -37,10 +41,27 @@ with tf.Session() as sess:
             break
 
     sess.run(validation_iterator)
+    i = 0
     while True:
         try:
-            ahead_sound, behind_sound = sess.run([ahead, behind])
-            # invert stft
+            for s, m, a, b in zip(*sess.run([signals, magnitude_spectrograms, ahead, behind])):
+                print(i)
+                plt.subplot(4, 1, 1)
+                plt.plot(s)
+                sf.write("sound_original_{:d}.wav".format(i), s, 20000)
+                plt.subplot(4, 1, 2)
+                m = signal_from_norm_stft(m)
+                plt.plot(m)
+                sf.write("sound_spectrogram_{:d}.wav".format(i), m, 20000)
+                plt.subplot(4, 1, 3)
+                a = signal_from_norm_stft(a)
+                plt.plot(a)
+                sf.write("sound_ahead_{:d}.wav".format(i), a, 20000)
+                plt.subplot(4, 1, 4)
+                b = signal_from_norm_stft(b)
+                plt.plot(b)
+                sf.write("sound_behind_{:d}.wav".format(i), b, 20000)
+                i += 1
         except tf.errors.OutOfRangeError:
             break
 
