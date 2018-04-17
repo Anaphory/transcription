@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 
-def log_mel_cepstrogram(magnitude_spectrograms, num_mel_bins=64, sample_rate=20000):
+def log_mel_cepstrogram(magnitude_spectrograms, num_mel_bins=64, sample_rate=44100):
     """Convert a magnitude spectrogram (eg. from stft) into a log mel cepstrogram.
 
     return the mfccs tensor.
