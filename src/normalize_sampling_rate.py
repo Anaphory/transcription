@@ -28,7 +28,7 @@ def normalize_sampling_rate(signal, original_rate, normal_rate=20000):
 
 
 def normalize_sampling_rate_windowed(signal, original_rate,
-                                     normal_rate=20000, blocksize=None,
+                                     normal_rate=44100, blocksize=None,
                                      overlap=True):
     """Resample `signal` to a fixed sampling rate.
 
@@ -54,13 +54,11 @@ def normalize_sampling_rate_windowed(signal, original_rate,
                      normal_rate / original_rate + 0.5) - output_signal_length
         if not len(signal_block) or not length:
             continue
-        if length < 4:
-            output_signal_blocks.append(signal_block)
-            output_signal_length += len(signal_block)
-        else:
-            output_signal_blocks.append(
-                resample(signal_block, length))
-            output_signal_length += length
+        output_signal_blocks.append(
+            resample(numpy.hstack(
+                [[0], signal_block, [0]]),
+                        length + 2)[1: -1])
+        output_signal_length += length
 
     if overlap:
         shifted = normalize_sampling_rate_windowed(

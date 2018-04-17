@@ -89,8 +89,8 @@ def clean(sound):
 
 
 def read_wavfile():
-    for file in itertools.chain(DATA_PATH.glob("**/V*.ogg"),
-                                DATA_PATH.glob("**/aa*.wav")):
+    for file in itertools.chain(DATA_PATH.glob("**/*.ogg"),
+                                DATA_PATH.glob("**/*.wav")):
         waveform, samplerate = sf.read(file.open("rb"))
         if len(waveform.shape) > 1:
             waveform = waveform[:, 1]

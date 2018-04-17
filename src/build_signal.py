@@ -12,7 +12,7 @@ def signal_from_norm_stft(spectrogram, step=128):
         'linear',
         -2)
     interpolated = interpolator(numpy.arange(time * step - step + 1))
-    phases = numpy.arange(0, time * step - step + 1) * 2 * numpy.pi
+    phases = numpy.arange(0, time * step - step + 1) * numpy.pi
     frequencies = numpy.arange(spectrogram.shape[-1]) / (spectrogram.shape[-1] - 1)
     unfiltered = numpy.sin(numpy.outer(phases, frequencies))
     filtered = unfiltered * interpolated

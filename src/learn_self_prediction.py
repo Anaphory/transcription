@@ -21,7 +21,7 @@ magnitude_spectrograms = tf.abs(tf.contrib.signal.stft(
             # Periodic Hann is the default window
             frame_step=128)) # 6.4 ms
 
-output, loss, ahead, behind = lstm_network(magnitude_spectrograms)
+output, loss, ahead, behind = lstm_network(magnitude_spectrograms, n_hidden=129)
 
 train_op = tf.train.AdamOptimizer(1e-3).minimize(loss)
 
@@ -33,12 +33,13 @@ validation_iterator = iterator.make_initializer(dataset)
 with tf.Session() as sess:
     sess.run(init_op)
 
-    sess.run(training_iterator)
-    while True:
-        try:
-            sess.run(train_op)
-        except tf.errors.OutOfRangeError:
-            break
+    for i in range(200):
+        sess.run(training_iterator)
+        while True:
+            try:
+                sess.run(train_op)
+            except tf.errors.OutOfRangeError:
+                break
 
     sess.run(validation_iterator)
     i = 0
@@ -48,19 +49,19 @@ with tf.Session() as sess:
                 print(i)
                 plt.subplot(4, 1, 1)
                 plt.plot(s)
-                sf.write("sound_original_{:d}.wav".format(i), s, 20000)
+                sf.write("sound_{:d}_original.ogg".format(i), s, 20000)
                 plt.subplot(4, 1, 2)
                 m = signal_from_norm_stft(m)
                 plt.plot(m)
-                sf.write("sound_spectrogram_{:d}.wav".format(i), m, 20000)
+                sf.write("sound_{:d}_spectrogram.ogg".format(i), m, 20000)
                 plt.subplot(4, 1, 3)
                 a = signal_from_norm_stft(a)
                 plt.plot(a)
-                sf.write("sound_ahead_{:d}.wav".format(i), a, 20000)
+                sf.write("sound_{:d}_ahead.ogg".format(i), a, 20000)
                 plt.subplot(4, 1, 4)
                 b = signal_from_norm_stft(b)
                 plt.plot(b)
-                sf.write("sound_behind_{:d}.wav".format(i), b, 20000)
+                sf.write("sound_{:d}_behind.ogg".format(i), b, 20000)
                 i += 1
         except tf.errors.OutOfRangeError:
             break
