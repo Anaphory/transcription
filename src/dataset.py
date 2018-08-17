@@ -19,6 +19,8 @@ import pyclts
 import read_textgrid
 import soundfile as sf
 
+from normalize_sampling_rate import normalize_sampling_rate_windowed as normalize_sampling_rate
+
 odd_symbols = {
     "H#": "#",
     "#H": "#",
@@ -87,6 +89,17 @@ def clean(sound):
     return odd_symbols.get(sound, sound)
 
 
+def read_wavfile():
+    for file in itertools.chain(DATA_PATH.glob("**/*.ogg"),
+                                DATA_PATH.glob("**/*.wav")):
+        waveform, samplerate = sf.read(file.open("rb"))
+        if len(waveform.shape) > 1:
+            waveform = waveform[:, 1]
+        waveform = normalize_sampling_rate(waveform, samplerate)
+
+        yield waveform
+
+
 def read_wavfile_and_annotation():
     for file in itertools.chain(DATA_PATH.glob("**/*.ogg"),
                                 DATA_PATH.glob("**/*.wav")):
@@ -117,12 +130,15 @@ def read_wavfile_and_annotation():
             segments = None
 
         waveform, samplerate = sf.read(file.open("rb"))
+        if len(waveform.shape) > 1:
+            waveform = waveform[:, 1]
+        waveform = normalize_sampling_rate(waveform, samplerate)
 
         if segments:
             yield waveform, segments
 
 
-dataset = Dataset.from_generator(
+segmented_dataset = Dataset.from_generator(
     read_wavfile_and_annotation,
     (tf.float32, tf.bool),
     (tf.TensorShape([None]), tf.TensorShape([None, N_FEATURES])))
@@ -132,3 +148,7 @@ next_element = dataset.make_one_shot_iterator().get_next()
 sess = tf.InteractiveSession()
 for i in range(10):
     value = sess.run(next_element)
+audio_dataset = Dataset.from_generator(
+    read_wavfile,
+    tf.float32,
+    tf.TensorShape([None]))
