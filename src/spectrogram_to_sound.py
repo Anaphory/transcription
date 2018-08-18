@@ -62,6 +62,7 @@ def griffin_lim(spectrograms):
 
 if __name__ == "__main__":
     from dataset import audio_dataset
+    dataset = audio_dataset.padded_batch(5, padded_shapes=[None])
 
     iterator = tf.data.Iterator.from_structure(dataset.output_types,
                                             dataset.output_shapes)

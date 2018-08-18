@@ -15,78 +15,16 @@ import numpy
 import tensorflow as tf
 from tensorflow.python.data.ops.dataset_ops import Dataset
 
-import pyclts
+from phonetic_features import N_FEATURES, feature_vector_of_sound, xsampa
 import read_textgrid
-import soundfile as sf
+import librosa
 
-from normalize_sampling_rate import normalize_sampling_rate_windowed as normalize_sampling_rate
-
-odd_symbols = {
-    "H#": "#",
-    "#H": "#",
-    "I": "ɪ",
-    "U": "ʊ",
-    "6": "ɐ",
-    "I6": "ɪɐ",
-    "aI": "aɪ",
-    "e:6": "e:ɐ",
-    "@": "ə",
-    "O6": "ɔɐ",
-    "E6": "ɛɐ",
-    "Z": "ʒ",
-    "H": "h", # Actually, this is ʰ (aspiration), which however is not
-              # an IPA segment.
-    "A": "ɑ", # Maybe?
-    "T": "θ",
-    "E": "ɛ",
-    "S": "ʃ",
-    "C": "ç",
-    "N": "ŋ",
-    "Q": "ɒ",
-    "tH": "tʰ",
-    "V": "ʌ",
-    "D": "ð",
-    "=l": "l̩",
-    "i@": "iə",
-    "@:": "ə:",
-    "OY": "ɔʏ",
-    "Y": "ʏ",
-    "*": "#",
-    "o:C": "o:",
-    }
-
-# What do we know about phonetics?
-ts = pyclts.TranscriptionSystem()
-features = {"diphthong"}
-for key in ts.features.keys():
-    try:
-        features |= key
-    except TypeError:
-        features.add(key)
-features = {feature: f for f, feature in enumerate(features)}
-
-# https://github.com/cldf/clts/blob/master/data/features.tsv lists 134
-# feature values, plus we want one for 'Unknown'
-N_FEATURES = 134 + 1
-
+from hparams import hparams
 try:
     this = Path(__file__)
 except NameError:
     this = Path("dataset.py").absolute()
 DATA_PATH = this.parent.parent / "data"
-
-
-def feature_vector_of_sound(sound):
-    vector = numpy.zeros(N_FEATURES)
-    if type(ts.resolve_sound(sound)) == pyclts.models.UnknownSound:
-        return vector
-    for feature in ts.resolve_sound(sound).featureset:
-        vector[features[feature]] = 1
-    return vector
-
-
-def clean(sound):
-    return odd_symbols.get(sound, sound)
 
 
 def read_wavfile():
@@ -98,6 +36,53 @@ def read_wavfile():
         waveform = normalize_sampling_rate(waveform, samplerate)
 
         yield waveform
+
+
+def read_wavfile_and_textgrid():
+    for file in itertools.chain(DATA_PATH.glob("**/*.ogg"),
+                                DATA_PATH.glob("**/*.wav")):
+        try:
+            try:
+                with file.with_suffix(".textgrid").open() as tr:
+                    textgrid = tr.read()
+            except UnicodeDecodeError:
+                tr.close()
+                with file.with_suffix(".textgrid").open(encoding="utf-16") as tr:
+                    textgrid = tr.read()
+        except FileNotFoundError:
+            continue
+
+        textgrid = read_textgrid.TextGrid(textgrid)
+        phonetics = textgrid.tiers[0]
+        if phonetics.nameid == "Phonetic":
+            # Assume XSAMPA
+            transform = xsampa
+        elif phonetics.nameid == "PhoneticIPA":
+            transform = None
+        else:
+            raise ValueError("Unexpected tier found in file {:}: {:}".format(
+                file, phonetics.nameid))
+        segments = phonetics.simple_transcript
+
+        windows_per_second = hparams.frame_shift_ms / 1000 * hparams.sample_rate
+        length = float(segments[-1][1])
+        feature_matrix = numpy.zeros((int(length * windows_per_second),
+                                      N_FEATURES))
+        for start, end, segment in segments:
+            start = float(start)
+            end = float(end)
+            if transform:
+                segment = transform(segment)
+            window_features = feature_vector_of_sound(segment)
+            for window in range(int(start * windows_per_second),
+                                 int(end * windows_per_second)):
+                feature_matrix[window] = window_features
+
+        waveform, samplerate = librosa.load(file, sr=44100)
+        if len(waveform.shape) > 1:
+            waveform = waveform[:, 0]
+
+        yield waveform, feature_matrix
 
 
 def read_wavfile_and_annotation():
@@ -138,16 +123,21 @@ def read_wavfile_and_annotation():
             yield waveform, segments
 
 
-segmented_dataset = Dataset.from_generator(
-    read_wavfile_and_annotation,
+annotated_dataset = Dataset.from_generator(
+    read_wavfile_and_textgrid,
     (tf.float32, tf.bool),
     (tf.TensorShape([None]), tf.TensorShape([None, N_FEATURES])))
 
-next_element = dataset.make_one_shot_iterator().get_next()
+segmented_dataset = Dataset.from_generator(
+    read_wavfile_and_textgrid,
+    (tf.float32, tf.bool),
+    (tf.TensorShape([None]), tf.TensorShape([None, N_FEATURES])))
 
-sess = tf.InteractiveSession()
-for i in range(10):
-    value = sess.run(next_element)
+# next_element = dataset.make_one_shot_iterator().get_next()
+
+# sess = tf.InteractiveSession()
+# for i in range(10):
+#     value = sess.run(next_element)
 audio_dataset = Dataset.from_generator(
     read_wavfile,
     tf.float32,
