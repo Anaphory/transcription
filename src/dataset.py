@@ -53,6 +53,12 @@ def read_wavfile_and_textgrid():
             continue
 
         textgrid = read_textgrid.TextGrid(textgrid)
+
+        waveform, samplerate = librosa.load(file, sr=hparams.sample_rate)
+        print(samplerate)
+        if len(waveform.shape) > 1:
+            waveform = waveform[:, 0]
+
         phonetics = textgrid.tiers[0]
         if phonetics.nameid == "Phonetic":
             # Assume XSAMPA
@@ -64,25 +70,30 @@ def read_wavfile_and_textgrid():
                 file, phonetics.nameid))
         segments = phonetics.simple_transcript
 
-        windows_per_second = hparams.frame_shift_ms / 1000 * hparams.sample_rate
-        length = float(segments[-1][1])
+        length = len(waveform) / samplerate
+        windows_per_second = 1000 / hparams.frame_shift_ms
         feature_matrix = numpy.zeros((int(length * windows_per_second),
                                       N_FEATURES))
-        for start, end, segment in segments:
-            start = float(start)
-            end = float(end)
-            if transform:
-                segment = transform(segment)
-            window_features = feature_vector_of_sound(segment)
-            for window in range(int(start * windows_per_second),
-                                 int(end * windows_per_second)):
-                feature_matrix[window] = window_features
 
-        waveform, samplerate = librosa.load(file, sr=44100)
-        if len(waveform.shape) > 1:
-            waveform = waveform[:, 0]
+        form = ""
+        try:
+            for start, end, segment in segments:
+                start = float(start)
+                end = float(end)
+                if transform:
+                    segment = transform(segment)
+                form += segment
+                window_features = feature_vector_of_sound(segment)
+                for window in range(int(start * windows_per_second),
+                                    int(end * windows_per_second)):
+                    feature_matrix[window] = window_features
+        except IndexError:
+            print("Inconsistent textgrid for {:}, ignored.".format(file))
+            continue
 
-        yield waveform, feature_matrix
+        if not feature_matrix.any():
+            continue
+        yield waveform, feature_matrix, form
 
 
 def read_wavfile_and_annotation():
@@ -124,14 +135,16 @@ def read_wavfile_and_annotation():
 
 
 annotated_dataset = Dataset.from_generator(
-    read_wavfile_and_textgrid,
+    read_wavfile_and_annotation,
     (tf.float32, tf.bool),
     (tf.TensorShape([None]), tf.TensorShape([None, N_FEATURES])))
 
 segmented_dataset = Dataset.from_generator(
     read_wavfile_and_textgrid,
-    (tf.float32, tf.bool),
-    (tf.TensorShape([None]), tf.TensorShape([None, N_FEATURES])))
+    (tf.float32, tf.bool, tf.string),
+    (tf.TensorShape([None]),
+     tf.TensorShape([None, N_FEATURES]),
+     tf.TensorShape([])))
 
 # next_element = dataset.make_one_shot_iterator().get_next()
 
