@@ -27,23 +27,17 @@ init_op = tf.global_variables_initializer()
 
 with tf.Session() as sess:
     sess.run(init_op)
-    sess.run(dataset_init_op)
-
-    for i in range(40):
+    for i in range(20):
         print(i)
-        try:
-            ss, ss_a, ss_b, _ = sess.run((signals, sound_ahead, sound_behind, train_op))
-            for s, s_a, s_b in zip(ss, ss_a, ss_b):
-                audio.scipy_play(256 * (s - s.min()) / (s.max() - s.min()))
-                audio.scipy_play(256 * (s_a - s_a.min()) / (s_a.max() - s_a.min()))
-                audio.scipy_play(256 * (s_b - s_b.min()) / (s_b.max() - s_b.min()))
-        except tf.errors.OutOfRangeError:
-            break
+        sess.run(dataset_init_op)
 
-    sess.run(validation_iterator)
-    for _ in range(40):
-        try:
-            ahead_sound, behind_sound = sess.run([ahead, behind])
-            # invert stft
-        except tf.errors.OutOfRangeError:
-            break
+        while True:
+            try:
+                l, ss, ss_a, ss_b, _ = sess.run((loss, signals, sound_ahead, sound_behind, train_op))
+                print(l)
+                # for s, s_a, s_b in zip(ss, ss_a, ss_b):
+                #     audio.scipy_play(256 * (s - s.min()) / (s.max() - s.min()))
+                #     audio.scipy_play(256 * (s_a - s_a.min()) / (s_a.max() - s_a.min()))
+                #     audio.scipy_play(256 * (s_b - s_b.min()) / (s_b.max() - s_b.min()))
+            except tf.errors.OutOfRangeError:
+                break
