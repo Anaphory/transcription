@@ -2,7 +2,7 @@ import tensorflow as tf
 
 from hparams import hparams
 
-def log_mel_cepstrogram(magnitude_spectrograms, num_mel_bins=256):
+def log_mel_cepstrogram(magnitude_spectrograms, num_mel_bins=32):
     """Convert a magnitude spectrogram (eg. from stft) into a log mel cepstrogram.
 
     return the mfccs tensor.
@@ -22,7 +22,7 @@ def log_mel_cepstrogram(magnitude_spectrograms, num_mel_bins=256):
     return tf.contrib.signal.mfccs_from_log_mel_spectrograms(log_mel_spectrograms)
 
 
-def lstm_network(input_spectrum, batch_size=1, spectrogram_size=513, n_hidden=65,
+def lstm_network(input_spectrum, batch_size=1, n_hidden=513,
                  time_length=10):
     """Generate a Tensorflow RNN calculation graph.
 
@@ -51,13 +51,24 @@ def lstm_network(input_spectrum, batch_size=1, spectrogram_size=513, n_hidden=65
         expected_lookahead_spectrum = tf.pad(input_spectrum, [[0, 0], [0, 2 * time_length], [0, 0]])
         expected_lookbehind_spectrum = tf.pad(input_spectrum, [[0, 0], [2 * time_length, 0], [0, 0]])
 
+        log_offset = 1e-6
+
         ahead_deviation = tf.reduce_mean(tf.square(
+            tf.log(lookahead_output + log_offset) -
+            tf.log(expected_lookahead_spectrum + log_offset)))
+
+        behind_deviation = tf.reduce_mean(tf.square(
+            tf.log(lookbehind_output + log_offset) -
+            tf.log(expected_lookbehind_spectrum + log_offset)))
+
+        ahead_mel_deviation = tf.reduce_mean(tf.square(
             log_mel_cepstrogram(lookahead_output) -
             log_mel_cepstrogram(expected_lookahead_spectrum)))
 
-        behind_deviation = tf.reduce_mean(tf.square(
+        behind_mel_deviation = tf.reduce_mean(tf.square(
             log_mel_cepstrogram(lookbehind_output) -
             log_mel_cepstrogram(expected_lookbehind_spectrum)))
 
-        loss = ahead_deviation + behind_deviation
+        loss = ((ahead_deviation + behind_deviation) * 100 +
+                (ahead_mel_deviation + behind_mel_deviation) * 6)
     return outputs, loss, lookahead_output, lookbehind_output
