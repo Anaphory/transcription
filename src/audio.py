@@ -31,12 +31,16 @@ except ImportError:
 
 
 def x_play_file(file, player="mplayer"):
-    player = subprocess.Popen([player, file],
-                            stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE)
-    print(player.stderr.read().decode('utf-8'),
-          file=sys.stdout)
+    try:
+        player = subprocess.Popen([player, file],
+                                stdin=subprocess.PIPE,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        player.stderr.read().decode('utf-8')
+    finally:
+        player.stderr.close()
+        player.stdin.close()
+        player.stdout.close()
 
 
 try:
