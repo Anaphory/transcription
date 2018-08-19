@@ -31,9 +31,12 @@ with tf.Session() as sess:
             for feat, spec in zip(feats, spects):
                 if not feat[:, features["vowel"]].any():
                     continue
-                plt.subplot(2,1,1)
+
+                print(feat.shape, spec.shape)
+
+                plt.subplot(2, 1, 1)
                 plt.imshow(spec.T, cmap='hot', aspect='auto')
-                plt.xlim(0, min(len(feat), len(spec.T))
+                plt.xlim(0, min(len(feat), len(spec.T)))
                 plt.subplot(2,1,2)
                 for feature, pos in features.items():
                     if not feat[:, pos].any():
@@ -43,10 +46,10 @@ with tf.Session() as sess:
                     plt.plot(range(len(feat)),
                              feat[:, pos] * numpy.random.random(),
                              label=feature)
-                plt.xlim(0, min(len(feat), len(spec.T))
+                plt.xlim(0, min(len(feat), len(spec.T)))
                 plt.legend()
-                print(feat.shape, spec.shape)
                 plt.show()
+
         except tf.errors.OutOfRangeError:
             break
 
