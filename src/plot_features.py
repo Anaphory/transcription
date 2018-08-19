@@ -33,6 +33,7 @@ with tf.Session() as sess:
                     continue
                 plt.subplot(2,1,1)
                 plt.imshow(spec.T, cmap='hot', aspect='auto')
+                plt.xlim(0, min(len(feat), len(spec.T))
                 plt.subplot(2,1,2)
                 for feature, pos in features.items():
                     if not feat[:, pos].any():
@@ -42,7 +43,7 @@ with tf.Session() as sess:
                     plt.plot(range(len(feat)),
                              feat[:, pos] * numpy.random.random(),
                              label=feature)
-                plt.xlim(0, len(feat))
+                plt.xlim(0, min(len(feat), len(spec.T))
                 plt.legend()
                 print(feat.shape, spec.shape)
                 plt.show()

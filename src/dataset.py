@@ -30,10 +30,9 @@ DATA_PATH = this.parent.parent / "data"
 def read_wavfile():
     for file in itertools.chain(DATA_PATH.glob("**/*.ogg"),
                                 DATA_PATH.glob("**/*.wav")):
-        waveform, samplerate = sf.read(file.open("rb"))
+        waveform, samplerate = librosa.load(file, sr=hparams.sample_rate)
         if len(waveform.shape) > 1:
             waveform = waveform[:, 1]
-        waveform = normalize_sampling_rate(waveform, samplerate)
 
         yield waveform
 

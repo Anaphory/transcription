@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
+import audio
 from dataset import audio_dataset
+from spectrogram_to_sound import stft, griffin_lim
 from model import lstm_network
 import tensorflow as tf
 
@@ -8,43 +10,40 @@ dataset = audio_dataset.padded_batch(5, padded_shapes=[None])
 
 iterator = tf.data.Iterator.from_structure(dataset.output_types,
                                            dataset.output_shapes)
+dataset_init_op = iterator.make_initializer(dataset)
 
 signals = iterator.get_next()
 
-magnitude_spectrograms = tf.abs(tf.contrib.signal.stft(
-            signals,
-            frame_length=1024, # The normal sample rate is 20000Hz, so this is 20 ms
-            # Periodic Hann is the default window
-            frame_step=128)) # 6.4 ms
+magnitude_spectrograms = tf.abs(stft(signals))
 
 output, loss, ahead, behind = lstm_network(magnitude_spectrograms)
+
+sound_ahead = griffin_lim(ahead)
+sound_behind = griffin_lim(behind)
 
 train_op = tf.train.AdamOptimizer(1e-3).minimize(loss)
 
 init_op = tf.global_variables_initializer()
 
-training_iterator = iterator.make_initializer(dataset)
-validation_iterator = iterator.make_initializer(dataset)
-
 with tf.Session() as sess:
     sess.run(init_op)
+    sess.run(dataset_init_op)
 
-    sess.run(training_iterator)
-    while True:
+    for i in range(40):
+        print(i)
         try:
-            sess.run(train_op)
+            ss, ss_a, ss_b, _ = sess.run((signals, sound_ahead, sound_behind, train_op))
+            for s, s_a, s_b in zip(ss, ss_a, ss_b):
+                audio.scipy_play(256 * (s - s.min()) / (s.max() - s.min()))
+                audio.scipy_play(256 * (s_a - s_a.min()) / (s_a.max() - s_a.min()))
+                audio.scipy_play(256 * (s_b - s_b.min()) / (s_b.max() - s_b.min()))
         except tf.errors.OutOfRangeError:
             break
 
     sess.run(validation_iterator)
-    while True:
+    for _ in range(40):
         try:
             ahead_sound, behind_sound = sess.run([ahead, behind])
             # invert stft
         except tf.errors.OutOfRangeError:
             break
-
-
-
-
-
