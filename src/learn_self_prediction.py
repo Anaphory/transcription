@@ -10,14 +10,14 @@ import matplotlib.pyplot as plt
 from build_signal import signal_from_norm_stft
 import soundfile as sf
 
-dataset = audio_dataset.padded_batch(5, padded_shapes=[None])
-dataset.shuffle(400)
+dataset = daudio_dataset.shuffle(1000).padded_batch(5, padded_shapes=[1])
 
 iterator = tf.data.Iterator.from_structure(dataset.output_types,
                                            dataset.output_shapes)
 dataset_init_op = iterator.make_initializer(dataset)
 
-signals = iterator.get_next()
+filenames = iterator.get_next()
+signals = tf.contrib.ffmpeg.decode_audio(tf.read_file(filenames))
 
 magnitude_spectrograms = tf.abs(stft(signals))
 

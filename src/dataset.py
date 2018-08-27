@@ -41,7 +41,7 @@ def read_wavefile_normalized_mono(file):
     return waveform
 
 
-def read_wavfile_and_textgrid():
+def wavfile_with_textgrid():
     for file in list_wavfiles():
         try:
             try:
@@ -56,8 +56,6 @@ def read_wavfile_and_textgrid():
 
         textgrid = read_textgrid.TextGrid(textgrid)
 
-        waveform = read_wavefile_normalized_mono(file)
-
         phonetics = textgrid.tiers[0]
         if phonetics.nameid == "Phonetic":
             # Assume XSAMPA
@@ -67,32 +65,20 @@ def read_wavfile_and_textgrid():
         else:
             raise ValueError("Unexpected tier found in file {:}: {:}".format(
                 file, phonetics.nameid))
-        segments = phonetics.simple_transcript
 
-        length = len(waveform) / samplerate
         windows_per_second = 1000 / hparams.frame_shift_ms
-        feature_matrix = numpy.zeros((int(length * windows_per_second),
-                                      N_FEATURES))
 
-        form = ""
-        try:
-            for start, end, segment in segments:
-                start = float(start)
-                end = float(end)
-                if transform:
-                    segment = transform(segment)
-                form += segment
-                window_features = feature_vector_of_sound(segment)
-                for window in range(int(start * windows_per_second),
-                                    int(end * windows_per_second)):
-                    feature_matrix[window] = window_features
-        except IndexError:
-            print("Inconsistent textgrid for {:}, ignored.".format(file))
-            continue
+        for start, end, segment in phonetics.simple_transcript:
+            start = float(start)
+            end = float(end)
+            if transform:
+                segment = transform(segment)
+            form += segment
+            for window in range(int(start * windows_per_second),
+                                int(end * windows_per_second)):
+                feature_matrix[window] = window_features
 
-        if not feature_matrix.any():
-            continue
-        yield waveform, feature_matrix, form
+        yield file, segments
 
 
 def read_wavfile_and_annotation():
@@ -130,24 +116,7 @@ def read_wavfile_and_annotation():
             yield waveform, segments
 
 
-annotated_dataset = Dataset.from_generator(
-    read_wavfile_and_annotation,
-    (tf.float32, tf.bool),
-    (tf.TensorShape([None]), tf.TensorShape([None, N_FEATURES])))
-
-segmented_dataset = Dataset.from_generator(
-    read_wavfile_and_textgrid,
-    (tf.float32, tf.bool, tf.string),
-    (tf.TensorShape([None]),
-     tf.TensorShape([None, N_FEATURES]),
-     tf.TensorShape([])))
-
-# next_element = dataset.make_one_shot_iterator().get_next()
-
-# sess = tf.InteractiveSession()
-# for i in range(10):
-#     value = sess.run(next_element)
 audio_dataset = Dataset.from_generator(
-    read_wavfile,
-    tf.float32,
-    tf.TensorShape([None]))
+    list_wavfiles,
+    tf.string,
+    tf.TensorShape([1]))
