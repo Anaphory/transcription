@@ -7,6 +7,7 @@ from model import lstm_network
 import tensorflow as tf
 
 dataset = audio_dataset.padded_batch(5, padded_shapes=[None])
+dataset.shuffle(400)
 
 iterator = tf.data.Iterator.from_structure(dataset.output_types,
                                            dataset.output_shapes)

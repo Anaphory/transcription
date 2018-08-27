@@ -27,19 +27,22 @@ except NameError:
 DATA_PATH = this.parent.parent / "data"
 
 
-def read_wavfile():
+def list_wavfiles():
     for file in itertools.chain(DATA_PATH.glob("**/*.ogg"),
                                 DATA_PATH.glob("**/*.wav")):
-        waveform, samplerate = librosa.load(file, sr=hparams.sample_rate)
-        if len(waveform.shape) > 1:
-            waveform = waveform[:, 1]
+        yield file
 
-        yield waveform
+
+def read_wavefile_normalized_mono(file):
+    waveform, samplerate = librosa.load(file, sr=hparams.sample_rate)
+    if len(waveform.shape) > 1:
+        waveform = waveform[:, 1]
+
+    return waveform
 
 
 def read_wavfile_and_textgrid():
-    for file in itertools.chain(DATA_PATH.glob("**/*.ogg"),
-                                DATA_PATH.glob("**/*.wav")):
+    for file in list_wavfiles():
         try:
             try:
                 with file.with_suffix(".textgrid").open() as tr:
@@ -53,10 +56,7 @@ def read_wavfile_and_textgrid():
 
         textgrid = read_textgrid.TextGrid(textgrid)
 
-        waveform, samplerate = librosa.load(file, sr=hparams.sample_rate)
-        print(samplerate)
-        if len(waveform.shape) > 1:
-            waveform = waveform[:, 0]
+        waveform = read_wavefile_normalized_mono(file)
 
         phonetics = textgrid.tiers[0]
         if phonetics.nameid == "Phonetic":
@@ -124,10 +124,7 @@ def read_wavfile_and_annotation():
         except FileNotFoundError:
             segments = None
 
-        waveform, samplerate = sf.read(file.open("rb"))
-        if len(waveform.shape) > 1:
-            waveform = waveform[:, 1]
-        waveform = normalize_sampling_rate(waveform, samplerate)
+        waveform = read_wavefile_normalized_mono(file)
 
         if segments:
             yield waveform, segments
