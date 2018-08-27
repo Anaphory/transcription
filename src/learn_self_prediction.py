@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
+import audio
 from dataset import audio_dataset
+from spectrogram_to_sound import stft, griffin_lim
 from model import lstm_network
 import tensorflow as tf
 
@@ -9,64 +11,38 @@ from build_signal import signal_from_norm_stft
 import soundfile as sf
 
 dataset = audio_dataset.padded_batch(5, padded_shapes=[None])
+dataset.shuffle(400)
 
 iterator = tf.data.Iterator.from_structure(dataset.output_types,
                                            dataset.output_shapes)
+dataset_init_op = iterator.make_initializer(dataset)
 
 signals = iterator.get_next()
 
-magnitude_spectrograms = tf.abs(tf.contrib.signal.stft(
-            signals,
-            frame_length=1024, # The normal sample rate is 20000Hz, so this is 20 ms
-            # Periodic Hann is the default window
-            frame_step=128)) # 6.4 ms
+magnitude_spectrograms = tf.abs(stft(signals))
 
 output, loss, ahead, behind = lstm_network(magnitude_spectrograms, n_hidden=129)
+
+sound_ahead = griffin_lim(ahead)
+sound_behind = griffin_lim(behind)
 
 train_op = tf.train.AdamOptimizer(1e-3).minimize(loss)
 
 init_op = tf.global_variables_initializer()
 
-training_iterator = iterator.make_initializer(dataset)
-validation_iterator = iterator.make_initializer(dataset)
-
 with tf.Session() as sess:
     sess.run(init_op)
+    for i in range(20):
+        print("\n", i)
+        sess.run(dataset_init_op)
 
-    for i in range(200):
-        sess.run(training_iterator)
         while True:
             try:
-                sess.run(train_op)
+                l, ss, ss_a, ss_b, _ = sess.run((loss, signals, sound_ahead, sound_behind, train_op))
+                print(l, end=" ")
+                # for s, s_a, s_b in zip(ss, ss_a, ss_b):
+                #     audio.scipy_play(256 * (s - s.min()) / (s.max() - s.min()))
+                #     audio.scipy_play(256 * (s_a - s_a.min()) / (s_a.max() - s_a.min()))
+                #     audio.scipy_play(256 * (s_b - s_b.min()) / (s_b.max() - s_b.min()))
             except tf.errors.OutOfRangeError:
                 break
-
-    sess.run(validation_iterator)
-    i = 0
-    while True:
-        try:
-            for s, m, a, b in zip(*sess.run([signals, magnitude_spectrograms, ahead, behind])):
-                print(i)
-                plt.subplot(4, 1, 1)
-                plt.plot(s)
-                sf.write("sound_{:d}_original.ogg".format(i), s, 20000)
-                plt.subplot(4, 1, 2)
-                m = signal_from_norm_stft(m)
-                plt.plot(m)
-                sf.write("sound_{:d}_spectrogram.ogg".format(i), m, 20000)
-                plt.subplot(4, 1, 3)
-                a = signal_from_norm_stft(a)
-                plt.plot(a)
-                sf.write("sound_{:d}_ahead.ogg".format(i), a, 20000)
-                plt.subplot(4, 1, 4)
-                b = signal_from_norm_stft(b)
-                plt.plot(b)
-                sf.write("sound_{:d}_behind.ogg".format(i), b, 20000)
-                i += 1
-        except tf.errors.OutOfRangeError:
-            break
-
-
-
-
-

@@ -134,7 +134,7 @@ for i, file in enumerate((DATA_PATH / "emu").glob("*.txt")):
     phonetics = textgrid.tiers[0]
     sounds += collections.Counter(
         p[2] for p in phonetics.simple_transcript)
-n_sounds = len([x for x in sounds.values() if x>1])
+n_sounds = len([x for x in sounds.values() if x > 1])
 labels = collections.OrderedDict()
 for i, (sound, freq) in enumerate(
         sounds.most_common(n_sounds)):
@@ -204,6 +204,8 @@ for i, file in enumerate(DATA_PATH.glob("*.ogg")):
 
     data.append(spectrograms)
 
+print(len(data))
+
 shift = 1
 inputs = []
 targets = []
@@ -213,7 +215,7 @@ for spectrogram in data:
     targets.append(target)
     
 # Learn the network
-for epoch in range(200):
+for epoch in range(2):
     for input, target in zip(inputs, targets):
         _loss, _spectrum, _expected_spectrum, _output, _ = session.run(
             [loss, spectrum, expected_spectrum, output, optimizer],
@@ -275,7 +277,7 @@ for i, spectrogram in enumerate(data):
     ttrs[i], _ = input_and_target(ttrs[i], shift)
 
 # Learn the network
-for epoch in range(400):
+for epoch in range(4):
     for input, target, ttr in zip(inputs, targets, ttrs):
         _loss, _logit_loss, _spectrum, _expected_spectrum, _output, _ = session.run(
             [loss, logit_loss, spectrum, expected_spectrum, output, phon_optimizer],
