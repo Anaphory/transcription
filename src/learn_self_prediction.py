@@ -28,13 +28,13 @@ init_op = tf.global_variables_initializer()
 with tf.Session() as sess:
     sess.run(init_op)
     for i in range(20):
-        print(i)
+        print("\n", i)
         sess.run(dataset_init_op)
 
         while True:
             try:
                 l, ss, ss_a, ss_b, _ = sess.run((loss, signals, sound_ahead, sound_behind, train_op))
-                print(l)
+                print(l, end=" ")
                 # for s, s_a, s_b in zip(ss, ss_a, ss_b):
                 #     audio.scipy_play(256 * (s - s.min()) / (s.max() - s.min()))
                 #     audio.scipy_play(256 * (s_a - s_a.min()) / (s_a.max() - s_a.min()))
