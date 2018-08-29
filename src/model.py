@@ -1,4 +1,5 @@
 import tensorflow as tf
+from phonetic_features import N_FEATURES
 
 from hparams import hparams
 
@@ -34,41 +35,49 @@ def lstm_network(input_spectrum, batch_size=1, n_hidden=513,
     Return the input, expected-output, output and loss tensors.
 
     """
-    with tf.name_scope('timeflies'):
-        spectrogram_size = input_spectrum.shape[-1].value
+    spectrogram_size = input_spectrum.shape[-1].value
 
-        padded_spectrum = tf.pad(input_spectrum, [[0, 0], [time_length, time_length], [0, 0]])
+    padded_spectrum = tf.pad(input_spectrum, [[0, 0], [time_length, time_length], [0, 0]])
 
-        lstm_bw_cell = tf.contrib.rnn.BasicLSTMCell(
-            n_hidden, forget_bias=1.0, state_is_tuple=True)
-        outputs, state = tf.nn.dynamic_rnn(
-            lstm_bw_cell, padded_spectrum,
-            dtype=tf.float32)
-        lookahead_output = tf.contrib.layers.fully_connected(
-            inputs=outputs, num_outputs=spectrogram_size)
-        lookbehind_output = tf.contrib.layers.fully_connected(
-            inputs=outputs, num_outputs=spectrogram_size)
-        expected_lookahead_spectrum = tf.pad(input_spectrum, [[0, 0], [0, 2 * time_length], [0, 0]])
-        expected_lookbehind_spectrum = tf.pad(input_spectrum, [[0, 0], [2 * time_length, 0], [0, 0]])
+    lstm_bw_cell = tf.contrib.rnn.BasicLSTMCell(
+        n_hidden, forget_bias=1.0, state_is_tuple=True)
+    outputs, state = tf.nn.dynamic_rnn(
+        lstm_bw_cell, padded_spectrum,
+        dtype=tf.float32)
+    lookahead_output = tf.contrib.layers.fully_connected(
+        inputs=outputs, num_outputs=spectrogram_size)
+    lookbehind_output = tf.contrib.layers.fully_connected(
+        inputs=outputs, num_outputs=spectrogram_size)
+    expected_lookahead_spectrum = tf.pad(input_spectrum, [[0, 0], [0, 2 * time_length], [0, 0]])
+    expected_lookbehind_spectrum = tf.pad(input_spectrum, [[0, 0], [2 * time_length, 0], [0, 0]])
 
-        log_offset = 1e-6
+    log_offset = 1e-6
 
-        ahead_deviation = tf.reduce_mean(tf.square(
-            tf.log(lookahead_output + log_offset) -
-            tf.log(expected_lookahead_spectrum + log_offset)))
+    ahead_deviation = tf.reduce_mean(tf.square(
+        tf.log(lookahead_output + log_offset) -
+        tf.log(expected_lookahead_spectrum + log_offset)))
 
-        behind_deviation = tf.reduce_mean(tf.square(
-            tf.log(lookbehind_output + log_offset) -
-            tf.log(expected_lookbehind_spectrum + log_offset)))
+    behind_deviation = tf.reduce_mean(tf.square(
+        tf.log(lookbehind_output + log_offset) -
+        tf.log(expected_lookbehind_spectrum + log_offset)))
 
-        ahead_mel_deviation = tf.reduce_mean(tf.square(
-            log_mel_cepstrogram(lookahead_output) -
-            log_mel_cepstrogram(expected_lookahead_spectrum)))
+    ahead_mel_deviation = tf.reduce_mean(tf.square(
+        log_mel_cepstrogram(lookahead_output) -
+        log_mel_cepstrogram(expected_lookahead_spectrum)))
 
-        behind_mel_deviation = tf.reduce_mean(tf.square(
-            log_mel_cepstrogram(lookbehind_output) -
-            log_mel_cepstrogram(expected_lookbehind_spectrum)))
+    behind_mel_deviation = tf.reduce_mean(tf.square(
+        log_mel_cepstrogram(lookbehind_output) -
+        log_mel_cepstrogram(expected_lookbehind_spectrum)))
 
-        loss = ((ahead_deviation + behind_deviation) * 100 +
-                (ahead_mel_deviation + behind_mel_deviation) * 6)
+    loss = ((ahead_deviation + behind_deviation) * 100 +
+            (ahead_mel_deviation + behind_mel_deviation) * 6)
     return outputs, loss, lookahead_output, lookbehind_output
+
+
+def feature_network(inputs, m_hidden=20, **kwargs):
+    """Generate a TensorFlow RNN calculation graph"""
+    hidden = tf.contrib.layers.fully_connected(
+        inputs=tf.sigmoid(inputs), num_outputs=m_hidden)
+    features = tf.contrib.layers.fully_connected(
+        inputs=tf.sigmoid(hidden), num_outputs=N_FEATURES)
+    return tf.sigmoid(features)
