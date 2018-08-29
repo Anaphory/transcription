@@ -17,8 +17,6 @@ from tensorflow.python.data.ops.dataset_ops import Dataset
 
 from phonetic_features import N_FEATURES, feature_vector_of_sound, xsampa
 import read_textgrid
-import librosa
-
 from hparams import hparams
 try:
     this = Path(__file__)
