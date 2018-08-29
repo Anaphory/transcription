@@ -44,7 +44,7 @@ def wavfile_with_textgrid():
             continue
 
         path, format = str(file), file.suffix[1:]
-        audio = read_audio(path, format)
+        audio, _ = read_audio(path, format)
 
         textgrid = read_textgrid.TextGrid(textgrid)
 
@@ -61,7 +61,7 @@ def wavfile_with_textgrid():
         windows_per_second = 1000 / hparams.frame_shift_ms
 
         feature_matrix = numpy.zeros(
-            (int(phonetics.simple_transcript[-1][1] * windows_per_second + 1),
+            (int(float(phonetics.simple_transcript[-1][1]) * windows_per_second + 1),
              N_FEATURES),
             dtype=bool)
         for start, end, segment in phonetics.simple_transcript:
