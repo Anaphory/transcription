@@ -28,8 +28,8 @@ DATA_PATH = this.parent.parent / "data"
 
 
 def list_wavfiles():
-    for file in itertools.chain(#DATA_PATH.glob("**/*.ogg"),
-                                DATA_PATH.glob("*/*.wav")):
+    for file in itertools.chain(DATA_PATH.glob("**/*.ogg"),
+                                DATA_PATH.glob("**/*.wav")):
         yield file.absolute()
 
 
@@ -45,7 +45,7 @@ def wavfile_with_textgrid():
         except FileNotFoundError:
             continue
 
-        path, format = audio_path_and_type(file)
+        path, format = str(file), file.suffix[1:]
         audio = read_audio(path, format)
 
         textgrid = read_textgrid.TextGrid(textgrid)
@@ -91,7 +91,7 @@ def read_audio(filename, format):
             file_format=format,
             samples_per_second=hparams.sample_rate,
             channel_count=1))
-    return waveform, tf.zeros((1, N_FEATURES))
+    return waveform, tf.zeros((1, N_FEATURES), dtype=tf.bool)
 
 
 audio_dataset = Dataset.from_generator(
