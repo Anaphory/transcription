@@ -55,14 +55,14 @@ feature_model.compile(
     loss=binary_crossentropy)
 
 
-data = dataset.ShiftedSpectrogramSequence()
-model.fit_generator(data)
+# data = dataset.ShiftedSpectrogramSequence()
+# model.fit_generator(data)
 
 for i in range(40):
     data = dataset.SpectrogramFeaturesSequence()
     while True:
         try:
-            history = feature_model.fit_generator(data, steps_per_epoch=10)
+            history = feature_model.fit_generator(data)
         except StopIteration:
             break
 

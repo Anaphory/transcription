@@ -130,27 +130,28 @@ class AudiofileSequence(Sequence):
             files = list_wavfiles()
         self.batch_size = batch_size
         sizes = []
-        self.waveforms = []
         self.files = []
         for file in files:
-            waveform = read_audio(file, 'wav')
-            i = bisect.bisect(sizes, len(waveform))
-            self.waveforms.insert(i, waveform)
-            sizes.insert(i, len(waveform))
+            try:
+                sg = numpy.load(file.with_suffix(".npy").open("rb"))
+            except (OSError, FileNotFoundError):
+                waveform = read_audio(file, 'wav')
+                sg = spectrogram(waveform)
+                numpy.save(file.with_suffix(".npy").open("wb"), sg)
+            i = bisect.bisect(sizes, len(sg))
+            sizes.insert(i, len(sg))
             self.files.insert(i, file)
 
         self.index_correction = list(range(len(self)))
         numpy.random.shuffle(self.index_correction)
 
     def __len__(self):
-        return -(-len(self.waveforms) // self.batch_size)
+        return -(-len(self.files) // self.batch_size)
 
     def __getitem__(self, index):
-        waveforms = self.waveforms[index * self.batch_size:
-                                   (index + 1) * self.batch_size]
-        spectrograms = [spectrogram(waveform) for waveform in waveforms]
-        if len(spectrograms) < self.batch_size:
-            import pdb; pdb.set_trace()
+        spectrograms = [
+            numpy.load(file.with_suffix(".npy").open("rb"))
+            for file in self.files[index * self.batch_size: (index + 1) * self.batch_size]]
         return pad_sequences(spectrograms,
                              dtype=numpy.float32,
                              value=numpy.log(1e-8))
@@ -176,8 +177,6 @@ class SpectrogramFeaturesSequence(AudiofileSequence):
         spectrograms = super().__getitem__(index)
         files = self.files[index * self.batch_size:
                            (index + 1) * self.batch_size]
-        print(files)
-        print()
         feature_values = [
             numpy.zeros(
                 (spectrograms.shape[0], spectrograms.shape[1], 2))
@@ -185,8 +184,9 @@ class SpectrogramFeaturesSequence(AudiofileSequence):
         for i, file in enumerate(files):
             for f, feature in enumerate(self.features_from_textgrid(
                     file, spectrograms.shape[1]).T):
-                feature_values[f][i][0] = 1 - feature
-                feature_values[f][i][1] = feature
+                feature_values[f][i, :, 0] = 1 - feature
+                feature_values[f][i, :, 1] = feature
+
         return (spectrograms, feature_values)
 
     @staticmethod
@@ -223,4 +223,5 @@ class SpectrogramFeaturesSequence(AudiofileSequence):
                     feature_matrix[window] = window_features
                 except IndexError:
                     continue
+        return feature_matrix
 
