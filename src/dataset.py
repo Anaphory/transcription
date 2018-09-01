@@ -13,21 +13,17 @@ from pathlib import Path
 
 import numpy
 import tensorflow as tf
-from tensorflow.python.data.ops.dataset_ops import Dataset
 
 from phonetic_features import N_FEATURES, feature_vector_of_sound, xsampa
 import read_textgrid
-from hparams import hparams
-try:
-    this = Path(__file__)
-except NameError:
-    this = Path("dataset.py").absolute()
+from hparams import hparams as p
+
+this = Path(__file__)
 DATA_PATH = this.parent.parent / "data"
 
 
 def list_wavfiles():
-    for file in itertools.chain(DATA_PATH.glob("**/*.ogg"),
-                                DATA_PATH.glob("**/*.wav")):
+    for file in itertools.chain(DATA_PATH.glob("**/*.wav")):
         yield file.absolute()
 
 
@@ -64,11 +60,13 @@ def wavfile_with_textgrid(files=list(list_wavfiles()), shuffle=True):
                 raise ValueError("Unexpected tier found in file {:}: {:}".format(
                     file, phonetics.nameid))
 
-            windows_per_second = 1000 / hparams.frame_shift_ms
+            windows_per_second = 1000 / p["frame_shift_ms"]
 
             feature_matrix = numpy.zeros(
-                (int(float(phonetics.simple_transcript[-1][1]) * windows_per_second -
-                    hparams.frame_length_ms / hparams.frame_shift_ms) + 1,
+                (int(float(phonetics.simple_transcript[-1][1]) *
+                     windows_per_second -
+                     p["frame_length_ms"] / p["frame_shift_ms"]) +
+                 1,
                 N_FEATURES),
                 dtype=bool)
             for start, end, segment in phonetics.simple_transcript:
@@ -97,22 +95,6 @@ def read_audio(filename, format):
         tf.contrib.ffmpeg.decode_audio(
             tf.read_file(filename),
             file_format=format,
-            samples_per_second=hparams.sample_rate,
+            samples_per_second=p["sample_rate"],
             channel_count=1))
     return waveform, tf.zeros((1, N_FEATURES), dtype=tf.bool)
-
-
-audio_dataset = Dataset.from_generator(
-    audio_path_and_type,
-    (tf.string, tf.string),
-    (tf.TensorShape(()), tf.TensorShape(())))
-
-
-audio_data = audio_dataset.shuffle(1000).map(read_audio)
-
-features_dataset = Dataset.from_generator(
-    wavfile_with_textgrid,
-    (tf.float32, tf.bool),
-    (tf.TensorShape((None,)), tf.TensorShape((None, N_FEATURES))))
-
-features_data = features_dataset.shuffle(1000)

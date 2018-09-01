@@ -1,7 +1,4 @@
 import tensorflow as tf
-from pathlib import Path
-import numpy
-import audio
 
 from hparams import hparams
 
@@ -12,9 +9,9 @@ from hparams import hparams
 
 
 def stft_parameters():
-    n_fft = (hparams.num_freq - 1) * 2
-    hop_length = int(hparams.frame_shift_ms / 1000 * hparams.sample_rate)
-    win_length = int(hparams.frame_length_ms / 1000 * hparams.sample_rate)
+    n_fft = (hparams["n_spectrogram"] - 1) * 2
+    hop_length = int(hparams["frame_shift_ms"] / 1000 * hparams["sample_rate"])
+    win_length = int(hparams["frame_length_ms"] / 1000 * hparams["sample_rate"])
     return n_fft, hop_length, win_length
 
 
@@ -34,7 +31,7 @@ def griffin_lim(spectrograms):
 
     Transform the modulus short time fourier transform of a signal back to a
     signal by ‘inventing’ compatible phase information for each segment,
-    iteratively improving the overlap throughout `hparams.griffin_lim_iters`
+    iteratively improving the overlap throughout `hparams["griffin_lim_iters"]`
     iteration steps.
 
     Parameters
@@ -51,7 +48,7 @@ def griffin_lim(spectrograms):
         # spectrograms; create batch of size 1
         S_complex = tf.identity(tf.cast(spectrograms, dtype=tf.complex64))
         y = istft(S_complex)
-        for i in range(hparams.griffin_lim_iters):
+        for i in range(hparams["griffin_lim_iters"]):
             est = stft(y)
             angles = est / tf.cast(tf.maximum(1e-8, tf.abs(est)), tf.complex64)
             y = istft(S_complex * angles)
@@ -59,6 +56,7 @@ def griffin_lim(spectrograms):
 
 
 if __name__ == "__main__":
+    import audio
     from dataset import audio_dataset
     dataset = audio_dataset.padded_batch(5, padded_shapes=[None])
 

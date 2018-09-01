@@ -14,56 +14,22 @@ from keras.activations import sigmoid
 import tensorflow as tf
 
 import dataset
-from hparams import hparams
-from phonetic_features import N_FEATURES
-import phonetic_features
 from spectrogram_to_sound import stft, griffin_lim
 
-# Set hyperparameters
-
-N_SPECTROGRAM = 513
-N_LSTM_HIDDEN = 129
-N_FEATURES_HIDDEN = 30
-FRAME_LENGTH_MS = hparams.frame_length_ms
-PREDICTION_TIME_AT_LEAST_MS = 20 # If this is not a multiple of frame length, take the next multiple
-
-
-prediction_length_windows = -(-PREDICTION_TIME_AT_LEAST_MS // FRAME_LENGTH_MS)
-
-
-inputs = Input(shape=(None, N_SPECTROGRAM))
-
-lstm_hidden = LSTM(
-    input_shape=(None, N_SPECTROGRAM),
-    units=N_LSTM_HIDDEN,
-    return_sequences=True, # We want the entire sequence, not do something like seq2seq
-    )(inputs)
-
-spectrogram_ahead_output = Dense(
-    units=N_SPECTROGRAM,
-    name="ahead_spectrogram")(lstm_hidden)
-
-spectrogram_behind_output = Dense(
-    units=N_SPECTROGRAM,
-    name="behind_spectrogram")(lstm_hidden)
-
-model = Model(
-    inputs=inputs,
-    outputs=[spectrogram_ahead_output, spectrogram_behind_output])
-
-model.compile(
-    optimizer=Adadelta(),
-    loss=[mean_squared_error, mean_squared_error],
-    loss_weights=[1., 1.])
+from hparams import hparams as p
+from phonetic_features import features, N_FEATURES
+prediction_length_windows = -(-p["prediction_time_at_least_ms"] //
+                              p["frame_shift_ms"])
+# Negative number magic to round to the next int
 
 def spectrograms_and_shifted():
-    p = prediction_length_windows
+    w = prediction_length_windows
     # After
-    a = lambda d: d[2 * p:].reshape((1, -1, N_SPECTROGRAM))
+    a = lambda d: d[2 * w:].reshape((1, -1, p["n_spectrogram"]))
     # Before
-    b = lambda d: d[:-2 * p].reshape((1, -1, N_SPECTROGRAM))
+    b = lambda d: d[:-2 * w].reshape((1, -1, p["n_spectrogram"]))
     # Central
-    c = lambda d: d[p:-p].reshape((1, -1, N_SPECTROGRAM))
+    c = lambda d: d[w:-w].reshape((1, -1, p["n_spectrogram"]))
 
     for waveform, segments in dataset.wavfile_with_textgrid():
         with tf.Session() as sess:
@@ -72,22 +38,6 @@ def spectrograms_and_shifted():
             c(spectrogram),
             [b(spectrogram),
              a(spectrogram)])
-
-data = spectrograms_and_shifted()
-while True:
-    try:
-        model.fit_generator(data, steps_per_epoch=10)
-    except StopIteration:
-        break
-
-hidden = Dense(N_FEATURES_HIDDEN, activation=sigmoid)(lstm_hidden)
-feature_outputs = [Dense(2, activation=sigmoid, name=feature)(hidden)
-                    for feature in phonetic_features.features]
-
-feature_model = Model(inputs=inputs, outputs=feature_outputs)
-feature_model.compile(
-    optimizer=Adadelta(),
-    loss=binary_crossentropy)
 
 def spectrograms_and_features():
     for waveform, segments in dataset.wavfile_with_textgrid():
@@ -108,7 +58,52 @@ def spectrograms_and_features():
                 (segments[:, feature_id],
                 1 - segments[:, feature_id])).reshape((1, -1, 2))
             for feature_id in range(N_FEATURES)]
-        yield spectrogram.reshape((1, -1, N_SPECTROGRAM)), feature_values
+        yield spectrogram.reshape((1, -1, p["n_spectrogram"])), feature_values
+
+
+inputs = Input(shape=(None, p["n_spectrogram"]))
+
+lstm_hidden = LSTM(
+    input_shape=(None, p["n_spectrogram"]),
+    units=p["n_lstm_hidden"],
+    return_sequences=True, # We want the entire sequence, not do something like seq2seq
+    )(inputs)
+
+spectrogram_ahead_output = Dense(
+    units=p["n_spectrogram"],
+    name="ahead_spectrogram")(lstm_hidden)
+
+spectrogram_behind_output = Dense(
+    units=p["n_spectrogram"],
+    name="behind_spectrogram")(lstm_hidden)
+
+hidden = Dense(p["n_features_hidden"], activation=sigmoid)(lstm_hidden)
+
+feature_outputs = [Dense(2, activation=sigmoid, name=feature)(hidden)
+                    for feature in features]
+
+model = Model(
+    inputs=inputs,
+    outputs=[spectrogram_ahead_output, spectrogram_behind_output])
+model.compile(
+    optimizer=Adadelta(),
+    loss=[mean_squared_error, mean_squared_error],
+    loss_weights=[1., 1.])
+
+feature_model = Model(
+    inputs=inputs,
+    outputs=feature_outputs)
+feature_model.compile(
+    optimizer=Adadelta(),
+    loss=binary_crossentropy)
+
+
+data = spectrograms_and_shifted()
+while True:
+    try:
+        model.fit_generator(data, steps_per_epoch=10)
+    except StopIteration:
+        break
 
 for i in range(40):
     data = spectrograms_and_features()
@@ -125,7 +120,8 @@ files = [Path(__file__).parent.parent / "data" / "Futbol.ogg"]
 for waveform, fts in dataset.wavfile_with_textgrid(files):
     with tf.Session() as sess:
         spectrogram = sess.run(tf.log(tf.abs(stft(waveform)) + 1e-8))
-    result = feature_model.predict(spectrogram.reshape((1, -1, N_SPECTROGRAM)))
+    result = feature_model.predict(
+        spectrogram.reshape((1, -1, p["n_spectrogram"])))
 
     plt.subplot(3, 1, 1)
     plt.imshow(fts.T, aspect='auto')
