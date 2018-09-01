@@ -167,25 +167,29 @@ class ShiftedSpectrogramSequence(AudiofileSequence):
 
 
 class SpectrogramFeaturesSequence(AudiofileSequence):
-    def __init__(self, batch_size=20, files=list_wavfiles()):
+    def __init__(self, batch_size=10, files=list_wavfiles()):
         files = [file
                  for file in files
-                 if file.with_suffix(".TextGrid").exists]
+                 if file.with_suffix(".TextGrid").exists()]
         super().__init__(batch_size=batch_size, files=files)
 
     def __getitem__(self, index):
-        spectrograms = super().__getitem__(index)
-        files = self.files[index * self.batch_size:
-                           (index + 1) * self.batch_size]
-        feature_values = [
-            numpy.zeros(
-                (spectrograms.shape[0], spectrograms.shape[1], 2))
-            for feature_id in range(N_FEATURES)]
-        for i, file in enumerate(files):
-            for f, feature in enumerate(self.features_from_textgrid(
-                    file, spectrograms.shape[1]).T):
-                feature_values[f][i, :, 0] = 1 - feature
-                feature_values[f][i, :, 1] = feature
+        try:
+            spectrograms = super().__getitem__(index)
+            files = self.files[index * self.batch_size:
+                        	   (index + 1) * self.batch_size]
+            feature_values = [
+                numpy.zeros(
+                    (spectrograms.shape[0], spectrograms.shape[1], 2))
+                for feature_id in range(N_FEATURES)]
+            for i, file in enumerate(files):
+                for f, feature in enumerate(self.features_from_textgrid(
+                        file, spectrograms.shape[1]).T):
+                    feature_values[f][i, :, 0] = 1 - feature
+                    feature_values[f][i, :, 1] = feature
+        except Exception as e:
+            # Keras eats all errors, make sure to at least see them in the console
+            print(e, end="\n\n")
 
         return (spectrograms, feature_values)
 

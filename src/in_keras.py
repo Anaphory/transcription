@@ -9,7 +9,7 @@ from keras.models import Model
 from keras.optimizers import Adadelta
 from keras.losses import mean_squared_error, binary_crossentropy
 from keras.layers import Dense, Activation, LSTM, Input
-from keras.activations import sigmoid
+from keras.activations import sigmoid, softmax
 
 import tensorflow as tf
 
@@ -36,7 +36,7 @@ spectrogram_behind_output = Dense(
 
 hidden = Dense(p["n_features_hidden"], activation=sigmoid)(lstm_hidden)
 
-feature_outputs = [Dense(2, activation=sigmoid, name=feature)(hidden)
+feature_outputs = [Dense(2, activation=softmax, name=feature)(hidden)
                     for feature in features]
 
 model = Model(
@@ -55,31 +55,32 @@ feature_model.compile(
     loss=binary_crossentropy)
 
 
-# data = dataset.ShiftedSpectrogramSequence()
-# model.fit_generator(data)
+featureless_data = dataset.ShiftedSpectrogramSequence()
+for i in range(3):
+    model.fit_generator(featureless_data)
 
+data = dataset.SpectrogramFeaturesSequence()
 for i in range(40):
-    data = dataset.SpectrogramFeaturesSequence()
-    while True:
-        try:
-            history = feature_model.fit_generator(data)
-        except StopIteration:
-            break
+    history = feature_model.fit_generator(data)
 
 # Example prediction
 from matplotlib import pyplot as plt
+from spectrogram_to_sound import stft
 
-files = [Path(__file__).parent.parent / "data" / "Futbol.ogg"]
+try:
+    files = [Path(__file__).parent.parent / "data" / "Futbol.ogg"]
+except NameError:
+    files = [Path().absolute().parent / "data" / "Futbol.ogg"]
+
 for waveform, fts in dataset.wavfile_with_textgrid(files):
     with tf.Session() as sess:
         spectrogram = sess.run(tf.log(tf.abs(stft(waveform)) + 1e-8))
     result = feature_model.predict(
         spectrogram.reshape((1, -1, p["n_spectrogram"])))
-
     plt.subplot(3, 1, 1)
     plt.imshow(fts.T, aspect='auto')
     plt.subplot(3, 1, 2)
-    plt.imshow(result[0].T, aspect='auto')
+    plt.imshow(numpy.array(result)[:, 0, :, 1], aspect='auto')
     plt.subplot(3, 1, 3)
-    plt.imshow(numpy.log(spectrogram.T), aspect='auto', origin='lower')
+    plt.imshow(spectrogram.T, aspect='auto', origin='lower')
     plt.show()
