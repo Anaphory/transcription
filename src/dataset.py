@@ -11,12 +11,21 @@
 import itertools
 from pathlib import Path
 
+from keras.utils import Sequence
+
+import bisect
 import numpy
 import tensorflow as tf
 
 from phonetic_features import N_FEATURES, feature_vector_of_sound, xsampa
 import read_textgrid
 from hparams import hparams as p
+prediction_length_windows = -(-p["prediction_time_at_least_ms"] //
+                              p["frame_shift_ms"])
+# Negative number magic to round to the next int
+
+from spectrogram_to_sound import stft
+from keras.preprocessing.sequence import pad_sequences
 
 this = Path(__file__)
 DATA_PATH = this.parent.parent / "data"
@@ -43,7 +52,7 @@ def wavfile_with_textgrid(files=list(list_wavfiles()), shuffle=True):
             feature_matrix = None
 
         path, format = str(file), file.suffix[1:]
-        audio, _ = read_audio(path, format)
+        audio = read_audio(path, format)
 
         if textgrid:
             textgrid = read_textgrid.TextGrid(textgrid)
@@ -90,11 +99,128 @@ def audio_path_and_type(files=list(list_wavfiles())):
         yield str(path), path.suffix[1:]
 
 
-def read_audio(filename, format):
+g = tf.Graph()
+with g.as_default():
     waveform = tf.squeeze(
         tf.contrib.ffmpeg.decode_audio(
-            tf.read_file(filename),
-            file_format=format,
+            tf.read_file(tf.placeholder(tf.string, name="filename")),
+            file_format=tf.placeholder(tf.string, name="format"),
             samples_per_second=p["sample_rate"],
             channel_count=1))
-    return waveform, tf.zeros((1, N_FEATURES), dtype=tf.bool)
+
+    log_mag_spectrogram = tf.log(tf.abs(stft(waveform) + 1e-8))
+
+
+def read_audio(filename, format):
+    with tf.Session(graph=g) as sess:
+        return sess.run(waveform, feed_dict={
+            'filename:0': str(filename),
+            'format:0': format})
+
+
+def spectrogram(wave):
+    with tf.Session(graph=g) as sess:
+        return sess.run(log_mag_spectrogram, feed_dict={
+            waveform: wave})
+
+
+class AudiofileSequence(Sequence):
+    def __init__(self, batch_size=10, files=None):
+        if files is None:
+            files = list_wavfiles()
+        self.batch_size = batch_size
+        sizes = []
+        self.waveforms = []
+        self.files = []
+        for file in files:
+            waveform = read_audio(file, 'wav')
+            i = bisect.bisect(sizes, len(waveform))
+            self.waveforms.insert(i, waveform)
+            sizes.insert(i, len(waveform))
+            self.files.insert(i, file)
+
+        self.index_correction = list(range(len(self)))
+        numpy.random.shuffle(self.index_correction)
+
+    def __len__(self):
+        return -(-len(self.waveforms) // self.batch_size)
+
+    def __getitem__(self, index):
+        waveforms = self.waveforms[index * self.batch_size:
+                                   (index + 1) * self.batch_size]
+        spectrograms = [spectrogram(waveform) for waveform in waveforms]
+        if len(spectrograms) < self.batch_size:
+            import pdb; pdb.set_trace()
+        return pad_sequences(spectrograms,
+                             dtype=numpy.float32,
+                             value=numpy.log(1e-8))
+
+
+class ShiftedSpectrogramSequence(AudiofileSequence):
+    def __getitem__(self, index):
+        raw = super().__getitem__(index)
+        return (
+            raw[:, prediction_length_windows:-prediction_length_windows],
+            [raw[:, :-2 * prediction_length_windows],
+             raw[:, 2 * prediction_length_windows:]])
+
+
+class SpectrogramFeaturesSequence(AudiofileSequence):
+    def __init__(self, batch_size=20, files=list_wavfiles()):
+        files = [file
+                 for file in files
+                 if file.with_suffix(".TextGrid").exists]
+        super().__init__(batch_size=batch_size, files=files)
+
+    def __getitem__(self, index):
+        spectrograms = super().__getitem__(index)
+        files = self.files[index * self.batch_size:
+                           (index + 1) * self.batch_size]
+        print(files)
+        print()
+        feature_values = [
+            numpy.zeros(
+                (spectrograms.shape[0], spectrograms.shape[1], 2))
+            for feature_id in range(N_FEATURES)]
+        for i, file in enumerate(files):
+            for f, feature in enumerate(self.features_from_textgrid(
+                    file, spectrograms.shape[1]).T):
+                feature_values[f][i][0] = 1 - feature
+                feature_values[f][i][1] = feature
+        return (spectrograms, feature_values)
+
+    @staticmethod
+    def features_from_textgrid(file, spectrogram_length):
+        with file.with_suffix(".TextGrid").open() as tr:
+            textgrid = read_textgrid.TextGrid(tr.read())
+
+        phonetics = textgrid.tiers[0]
+        if phonetics.nameid == "Phonetic":
+            # Assume XSAMPA
+            transform = xsampa
+        elif phonetics.nameid == "PhoneticIPA":
+            transform = None
+        elif phonetics.nameid == "MAU": # WebMAUS output
+            transform = None
+        else:
+            raise ValueError("Unexpected first tier found in file {:}: {:}".format(
+                file, phonetics.nameid))
+
+        windows_per_second = 1000 / p["frame_shift_ms"]
+
+        feature_matrix = numpy.zeros(
+            (spectrogram_length, N_FEATURES),
+            dtype=bool)
+        for start, end, segment in phonetics.simple_transcript:
+            start = float(start)
+            end = float(end)
+            if transform:
+                segment = transform(segment)
+            window_features = feature_vector_of_sound(segment)
+            for window in range(int(start * windows_per_second),
+                                int(end * windows_per_second)):
+                try:
+                    feature_matrix[window] = window_features
+                except IndexError:
+                    continue
+

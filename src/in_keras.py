@@ -14,52 +14,9 @@ from keras.activations import sigmoid
 import tensorflow as tf
 
 import dataset
-from spectrogram_to_sound import stft, griffin_lim
 
 from hparams import hparams as p
 from phonetic_features import features, N_FEATURES
-prediction_length_windows = -(-p["prediction_time_at_least_ms"] //
-                              p["frame_shift_ms"])
-# Negative number magic to round to the next int
-
-def spectrograms_and_shifted():
-    w = prediction_length_windows
-    # After
-    a = lambda d: d[2 * w:].reshape((1, -1, p["n_spectrogram"]))
-    # Before
-    b = lambda d: d[:-2 * w].reshape((1, -1, p["n_spectrogram"]))
-    # Central
-    c = lambda d: d[w:-w].reshape((1, -1, p["n_spectrogram"]))
-
-    for waveform, segments in dataset.wavfile_with_textgrid():
-        with tf.Session() as sess:
-            spectrogram = sess.run(tf.log(tf.abs(stft(waveform)) + 1e-8))
-        yield (
-            c(spectrogram),
-            [b(spectrogram),
-             a(spectrogram)])
-
-def spectrograms_and_features():
-    for waveform, segments in dataset.wavfile_with_textgrid():
-        if segments is None:
-            continue
-        with tf.Session() as sess:
-            try:
-                spectrogram = sess.run(tf.log(tf.abs(stft(waveform)) + 1e-8))
-            except InvalidArgumentError:
-                continue
-        if len(segments) > len(spectrogram):
-            segments = segments[:len(spectrogram)]
-        elif len(segments) < len(spectrogram):
-            spectrogram = spectrogram[:len(segments)]
-
-        feature_values = [
-            numpy.vstack(
-                (segments[:, feature_id],
-                1 - segments[:, feature_id])).reshape((1, -1, 2))
-            for feature_id in range(N_FEATURES)]
-        yield spectrogram.reshape((1, -1, p["n_spectrogram"])), feature_values
-
 
 inputs = Input(shape=(None, p["n_spectrogram"]))
 
@@ -98,15 +55,11 @@ feature_model.compile(
     loss=binary_crossentropy)
 
 
-data = spectrograms_and_shifted()
-while True:
-    try:
-        model.fit_generator(data, steps_per_epoch=10)
-    except StopIteration:
-        break
+data = dataset.ShiftedSpectrogramSequence()
+model.fit_generator(data)
 
 for i in range(40):
-    data = spectrograms_and_features()
+    data = dataset.SpectrogramFeaturesSequence()
     while True:
         try:
             history = feature_model.fit_generator(data, steps_per_epoch=10)
