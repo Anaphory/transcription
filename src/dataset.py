@@ -34,13 +34,14 @@ def list_wavfiles():
 def wavfile_with_textgrid():
     for file in list_wavfiles():
         try:
-            with file.with_suffix(".textgrid").open() as tr:
+            with file.with_suffix(".TextGrid").open() as tr:
                 textgrid = tr.read()
         except UnicodeDecodeError:
             tr.close()
-            with file.with_suffix(".textgrid").open(encoding="utf-16") as tr:
+            with file.with_suffix(".TextGrid").open(encoding="utf-16") as tr:
                 textgrid = tr.read()
         except FileNotFoundError:
+            print(file)
             continue
 
         path, format = str(file), file.suffix[1:]
@@ -53,6 +54,8 @@ def wavfile_with_textgrid():
             # Assume XSAMPA
             transform = xsampa
         elif phonetics.nameid == "PhoneticIPA":
+            transform = None
+        elif phonetics.nameid == "MAU": # WebMAUS output
             transform = None
         else:
             raise ValueError("Unexpected tier found in file {:}: {:}".format(

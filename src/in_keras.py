@@ -7,6 +7,7 @@ from keras.models import Model
 from keras.optimizers import Adadelta
 from keras.losses import mean_squared_logarithmic_error
 from keras.layers import Dense, Activation, LSTM, Input
+from keras.activations import sigmoid
 
 import tensorflow as tf
 
@@ -19,6 +20,7 @@ from spectrogram_to_sound import stft, griffin_lim
 
 N_SPECTROGRAM = 513
 N_LSTM_HIDDEN = 129
+N_FEATURES_HIDDEN = 30
 FRAME_LENGTH_MS = hparams.frame_length_ms
 PREDICTION_TIME_AT_LEAST_MS = 20 # If this is not a multiple of frame length, take the next multiple
 
@@ -70,7 +72,37 @@ def spectrograms_and_shifted():
                 spectrogram,
                 empty_windows)))])
 
+data = spectrograms_and_shifted()
+while True:
+    try:
+        model.fit_generator(data, steps_per_epoch=10)
+    except StopIteration:
+        break
 
-for i in range(40):
-    model.fit_generator(spectrograms_and_shifted(),
-                        steps_per_epoch=10)
+hidden = Dense(N_FEATURES_HIDDEN, activation=sigmoid)(lstm_hidden)
+features_output = Dense(N_FEATURES, activation=sigmoid)(hidden)
+
+feature_model = Model(inputs=inputs, outputs=[features_output])
+feature_model.compile(
+    optimizer=Adadelta(),
+    loss=[mean_squared_logarithmic_error],
+    loss_weights=[1.])
+
+def spectrograms_and_features():
+    for waveform, segments in dataset.wavfile_with_textgrid():
+        if numpy.isnan(segments).any():
+            continue
+        with tf.Session() as sess:
+            spectrogram = sess.run(tf.abs(stft(waveform)))
+        result = (spectrograms.reshape((1, -1, N_SPECTROGRAM)),
+                  segments)
+        print(result[0].shape, result[1].shape)
+        yield result
+
+data = spectrograms_and_features()
+while True:
+    try:
+        feature_model.fit_generator(data, steps_per_epoch=10)
+    except StopIteration:
+        break
+

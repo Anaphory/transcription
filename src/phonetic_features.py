@@ -41,7 +41,7 @@ xsampa_substitutions = {
 
 
 # What do we know about phonetics?
-ts = pyclts.TranscriptionSystem()
+ts = pyclts.TranscriptionSystem(id_="bipa")
 features = {"diphthong"}
 for key in ts.features.keys():
     if 'marker' in key:
