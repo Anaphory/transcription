@@ -31,8 +31,10 @@ def list_wavfiles():
         yield file.absolute()
 
 
-def wavfile_with_textgrid():
-    for file in list_wavfiles():
+def wavfile_with_textgrid(files=list(list_wavfiles()), shuffle=True):
+    if shuffle:
+        numpy.random.shuffle(files)
+    for file in files:
         try:
             with file.with_suffix(".TextGrid").open() as tr:
                 textgrid = tr.read()
@@ -41,47 +43,52 @@ def wavfile_with_textgrid():
             with file.with_suffix(".TextGrid").open(encoding="utf-16") as tr:
                 textgrid = tr.read()
         except FileNotFoundError:
-            print(file)
-            continue
+            textgrid = None
+            feature_matrix = None
 
         path, format = str(file), file.suffix[1:]
         audio, _ = read_audio(path, format)
 
-        textgrid = read_textgrid.TextGrid(textgrid)
+        if textgrid:
+            textgrid = read_textgrid.TextGrid(textgrid)
 
-        phonetics = textgrid.tiers[0]
-        if phonetics.nameid == "Phonetic":
-            # Assume XSAMPA
-            transform = xsampa
-        elif phonetics.nameid == "PhoneticIPA":
-            transform = None
-        elif phonetics.nameid == "MAU": # WebMAUS output
-            transform = None
-        else:
-            raise ValueError("Unexpected tier found in file {:}: {:}".format(
-                file, phonetics.nameid))
+            phonetics = textgrid.tiers[0]
+            if phonetics.nameid == "Phonetic":
+                # Assume XSAMPA
+                transform = xsampa
+            elif phonetics.nameid == "PhoneticIPA":
+                transform = None
+            elif phonetics.nameid == "MAU": # WebMAUS output
+                transform = None
+            else:
+                raise ValueError("Unexpected tier found in file {:}: {:}".format(
+                    file, phonetics.nameid))
 
-        windows_per_second = 1000 / hparams.frame_shift_ms
+            windows_per_second = 1000 / hparams.frame_shift_ms
 
-        feature_matrix = numpy.zeros(
-            (int(float(phonetics.simple_transcript[-1][1]) * windows_per_second + 1),
-             N_FEATURES),
-            dtype=bool)
-        for start, end, segment in phonetics.simple_transcript:
-            start = float(start)
-            end = float(end)
-            if transform:
-                segment = transform(segment)
-            window_features = feature_vector_of_sound(segment)
-            for window in range(int(start * windows_per_second),
-                                int(end * windows_per_second)):
-                feature_matrix[window] = window_features
+            feature_matrix = numpy.zeros(
+                (int(float(phonetics.simple_transcript[-1][1]) * windows_per_second -
+                    hparams.frame_length_ms / hparams.frame_shift_ms) + 1,
+                N_FEATURES),
+                dtype=bool)
+            for start, end, segment in phonetics.simple_transcript:
+                start = float(start)
+                end = float(end)
+                if transform:
+                    segment = transform(segment)
+                window_features = feature_vector_of_sound(segment)
+                for window in range(int(start * windows_per_second),
+                                    int(end * windows_per_second)):
+                    try:
+                        feature_matrix[window] = window_features
+                    except IndexError:
+                        continue
 
         yield audio, feature_matrix
 
 
-def audio_path_and_type():
-    for path in list_wavfiles():
+def audio_path_and_type(files=list(list_wavfiles())):
+    for path in files:
         yield str(path), path.suffix[1:]
 
 

@@ -50,7 +50,7 @@ for key in ts.features.keys():
         features |= key
     except TypeError:
         features.add(key)
-features = {feature: f for f, feature in enumerate(features)}
+features_lookup = {feature: f for f, feature in enumerate(features)}
 
 # https://github.com/cldf/clts/blob/master/data/features.tsv lists 134
 # feature values, plus we want one for 'Unknown'
@@ -63,7 +63,7 @@ def feature_vector_of_sound(sound):
         return vector
     for feature in ts.resolve_sound(sound).featureset:
         try:
-            vector[features[feature]] = 1
+            vector[features_lookup[feature]] = 1
         except KeyError:
             continue
     return vector
