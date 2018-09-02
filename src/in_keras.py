@@ -56,21 +56,23 @@ feature_model.compile(
 
 
 featureless_data = dataset.ShiftedSpectrogramSequence()
-for i in range(3):
-    model.fit_generator(featureless_data)
-
 data = dataset.SpectrogramFeaturesSequence()
-for i in range(40):
-    history = feature_model.fit_generator(data)
+
+for e in range(100):
+    print(e)
+    for i in range(4):
+        print(i)
+        model.fit_generator(featureless_data)
+
+    for i in range(12):
+        print(i)
+        history = feature_model.fit_generator(data)
 
 # Example prediction
 from matplotlib import pyplot as plt
 from spectrogram_to_sound import stft
 
-try:
-    files = [Path(__file__).parent.parent / "data" / "Futbol.ogg"]
-except NameError:
-    files = [Path().absolute().parent / "data" / "Futbol.ogg"]
+files = [Path().absolute().parent / "data" / "Futbol.ogg"]
 
 for waveform, fts in dataset.wavfile_with_textgrid(files):
     with tf.Session() as sess:
