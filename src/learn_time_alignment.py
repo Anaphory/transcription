@@ -31,6 +31,17 @@ lstmf, lstmb = Bidirectional(
 
 merger = keras.layers.Concatenate(axis=-1)([lstmf, lstmb])
 
+lstmf, lstmb = Bidirectional(
+    LSTM(
+        input_shape=(None, hparams["n_spectrogram"]),
+        units=hparams["n_lstm_hidden"],
+        dropout=0.2,
+        return_sequences=True,
+    ), merge_mode=None)(merger)
+
+merger = keras.layers.Concatenate(axis=-1)([lstmf, lstmb])
+
+
 lstm2 = Bidirectional(
     LSTM(
         input_shape=(None, hparams["n_spectrogram"]),
@@ -54,6 +65,6 @@ model.compile(
 time_aligned_data = dataset.TimeAlignmentSequence(batch_size=3)
 
 print(model.evaluate_generator(time_aligned_data))
-for _ in range(30):
+for _ in range(40):
     model.fit_generator(time_aligned_data)
     print(model.evaluate_generator(time_aligned_data))
