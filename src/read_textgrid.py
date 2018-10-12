@@ -131,7 +131,7 @@ class TextGrid(object):
         """
         Takes open read file as input, initializes attributes 
         of the TextGrid file.
-        @type read_file: An open TextGrid file, mode "r".
+        @type read_file: string. The content of a TextGrid file.
         @param size:  Number of tiers.
         @param xmin: xmin.
         @param xmax: xmax.
