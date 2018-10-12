@@ -42,7 +42,7 @@ lstmf, lstmb = Bidirectional(
 merger = keras.layers.Concatenate(axis=-1)([lstmf, lstmb])
 
 
-lstm2 = Bidirectional(
+lstmf, lstmb = Bidirectional(
     LSTM(
         input_shape=(None, hparams["n_spectrogram"]),
         units=hparams["n_lstm_hidden"],
@@ -50,9 +50,11 @@ lstm2 = Bidirectional(
         return_sequences=True,
     ), merge_mode='sum')(merger)
 
+merger = keras.layers.Concatenate(axis=-1)([lstmf, lstmb])
+
 output = Dense(
     units=len(dataset.SEGMENTS),
-    activation=softmax)(lstm2)
+    activation=softmax)(merger)
 
 model = Model(
     inputs=inputs,
@@ -65,6 +67,6 @@ model.compile(
 time_aligned_data = dataset.TimeAlignmentSequence(batch_size=3)
 
 print(model.evaluate_generator(time_aligned_data))
-for _ in range(40):
+for _ in range(100):
     model.fit_generator(time_aligned_data)
     print(model.evaluate_generator(time_aligned_data))
