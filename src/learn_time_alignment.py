@@ -21,21 +21,38 @@ import dataset
 
 inputs = Input(shape=(None, hparams["n_spectrogram"]))
 
-connector = inputs
+lstmf, lstmb = Bidirectional(
+    LSTM(
+        input_shape=(None, hparams["n_spectrogram"]),
+        units=hparams["n_lstm_hidden"],
+        dropout=0.2,
+        return_sequences=True,
+    ), merge_mode=None)(inputs)
 
-for l in hparams["n_lstm_hidden"]:
-    lstmf, lstmb = Bidirectional(
-        LSTM(
-            units=l,
-            dropout=0.2,
-            return_sequences=True,
-        ), merge_mode=None)(connector)
+merger = keras.layers.Concatenate(axis=-1)([lstmf, lstmb])
 
-    connector = keras.layers.Concatenate(axis=-1)([lstmf, lstmb])
+lstmf, lstmb = Bidirectional(
+    LSTM(
+        input_shape=(None, hparams["n_spectrogram"]),
+        units=hparams["n_lstm_hidden"],
+        dropout=0.2,
+        return_sequences=True,
+    ), merge_mode=None)(merger)
+
+merger = keras.layers.Concatenate(axis=-1)([lstmf, lstmb])
+
+
+lstm = Bidirectional(
+    LSTM(
+        input_shape=(None, hparams["n_spectrogram"]),
+        units=hparams["n_lstm_hidden"],
+        dropout=0.2,
+        return_sequences=True,
+    ), merge_mode='sum')(merger)
 
 output = Dense(
     units=len(dataset.SEGMENTS),
-    activation=softmax)(connector)
+    activation=softmax)(lstm)
 
 model = Model(
     inputs=inputs,
@@ -47,9 +64,7 @@ model.compile(
 
 time_aligned_data = dataset.TimeAlignmentSequence(batch_size=3)
 
-old_e = 0
-for e in range(0, 100, 5):
-    model.fit_generator(
-        time_aligned_data, epochs=e, initial_epoch=old_e)
-    old_e = e
+print(model.evaluate_generator(time_aligned_data))
+for _ in range(100):
+    model.fit_generator(time_aligned_data)
     print(model.evaluate_generator(time_aligned_data))
