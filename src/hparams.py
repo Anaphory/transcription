@@ -1,6 +1,10 @@
+#!/usr/bin/python
+
+"""Model hyperparameters."""
+
 hparams = {
     "n_spectrogram": 513,
-    "n_lstm_hidden": 300,
+    "n_lstm_hidden": [300, 300, 300],
     "n_features_hidden": 40,
     "frame_length_ms": 15,
     "frame_shift_ms": 5,
