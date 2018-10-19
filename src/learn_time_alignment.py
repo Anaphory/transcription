@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import sys
 from pathlib import Path
 
 import numpy
@@ -48,7 +49,7 @@ model.compile(
 time_aligned_data = dataset.TimeAlignmentSequence(batch_size=3)
 
 old_e = 0
-for e in range(0, 100, 5):
+for e in range(0, 151, 5):
     model.fit_generator(
         time_aligned_data, epochs=e, initial_epoch=old_e)
     old_e = e
