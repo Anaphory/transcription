@@ -54,3 +54,36 @@ for e in range(0, 151, 5):
         time_aligned_data, epochs=e, initial_epoch=old_e)
     old_e = e
     print(model.evaluate_generator(time_aligned_data))
+
+# Example prediction
+for file in data_files:
+    x, y = dataset.TimeAlignmentSequence(files=[file])[0]
+    pred = model.predict(x)
+
+    before = None, None
+    lines = [[], []]
+    for segment, expected in zip(pred.argmax(2)[0],
+                                y.argmax(2)[0]):
+        segment = dataset.SEGMENTS[segment]
+        expected = dataset.SEGMENTS[expected]
+        if (segment, expected) == before:
+            pass
+        elif segment != before[0]:
+            if expected == before[1]:
+                lines[0].append(segment)
+                lines[1].append(" "*len(segment))
+            else:
+                if len(segment) < len(expected):
+                    lines[0].append(segment + " " * (len(expected) - len(segment)))
+                    lines[1].append(expected)
+                else:
+                    lines[0].append(segment)
+                    lines[1].append(expected + " " * (len(segment) - len(expected)))
+        else:
+            lines[0].append(" "*len(expected))
+            lines[1].append(expected)
+        before = (segment, expected)
+
+    print("".join(lines[0]))
+    print("".join(lines[1]))
+    print()
