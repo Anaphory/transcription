@@ -21,12 +21,10 @@ except NameError:
 DATA_PATH = this.parent.parent / "data" / "selection"
 
 
-SEGMENTS = [
-    None, '#H', '*', '2:', '2:6', '6', '9', '@', 'ASpause', 'C', 'E',
-    'E6', 'E:', 'E:6', 'H#', 'I', 'I6', 'N', 'O', 'O6', 'OY', 'Q', 'S', 'U',
-    'U6', 'Y', 'a', 'a6', 'a:', 'a:6', 'aI', 'aU', 'b', 'd', 'e:', 'e:6', 'f',
-    'g', 'h', 'i:', 'i:6', 'j', 'k', 'l', 'm', 'n', 'o:', 'o:6', 'p', 'r', 's',
-    't', 'u:', 'u:6', 'v', 'x', 'y:', 'y:6', 'z']
+SEGMENTS = ['', '#H', '*', '2:', '6', '9', '@', 'ASpause', 'C', 'E', 'E:',
+            'H#', 'I', 'I6', 'N', 'O', 'Q', 'S', 'U', 'Y', 'a', 'a:', 'b', 'd',
+            'e:', 'f', 'g', 'h', 'i:', 'j', 'k', 'l', 'm', 'n', 'o:', 'p', 'r',
+            's', 't', 'u:', 'v', 'x', 'y:', 'z']
 
 def stft_parameters():
     n_fft = (hparams["n_spectrogram"] - 1) * 2
