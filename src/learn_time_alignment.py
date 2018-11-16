@@ -49,14 +49,14 @@ model.compile(
 time_aligned_data = dataset.TimeAlignmentSequence(batch_size=3)
 
 old_e = 0
-for e in range(0, 151, 5):
+for e in range(0, 251, 5):
     model.fit_generator(
         time_aligned_data, epochs=e, initial_epoch=old_e)
     old_e = e
     print(model.evaluate_generator(time_aligned_data))
 
 # Example prediction
-for file in data_files:
+for file in time_aligned_data.files:
     x, y = dataset.TimeAlignmentSequence(files=[file])[0]
     pred = model.predict(x)
 
