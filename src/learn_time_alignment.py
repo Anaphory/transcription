@@ -34,7 +34,7 @@ for l in hparams["n_lstm_hidden"]:
 
     connector = keras.layers.Concatenate(axis=-1)([lstmf, lstmb])
 
-output = Dense(
+output = LSTM(
     units=len(dataset.SEGMENTS),
     activation=softmax)(connector)
 
