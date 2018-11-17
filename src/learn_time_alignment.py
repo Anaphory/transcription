@@ -16,7 +16,9 @@ from keras.metrics import categorical_accuracy
 from keras import backend as K
 
 from hparams import hparams
+
 import dataset
+
 
 # Model parameters
 
@@ -34,7 +36,7 @@ for l in hparams["n_lstm_hidden"]:
 
     connector = keras.layers.Concatenate(axis=-1)([lstmf, lstmb])
 
-output = LSTM(
+output = Dense(
     units=len(dataset.SEGMENTS),
     activation=softmax)(connector)
 

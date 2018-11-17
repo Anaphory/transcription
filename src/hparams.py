@@ -2,9 +2,21 @@
 
 """Model hyperparameters."""
 
+import argparse
+parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+parser.add_argument("--n-lstm-hidden", default=[100, 100, 150],
+                    type=lambda x: [int(i) for i in x.split()],
+                    help="Hidden layer sizes as whitespace-separated"
+                    "list of integers (default: 100 100 150)")
+parser.add_argument("--n-spectrogram", default=513,
+                    type=int,
+                    help="Size of the spectrogram, ideally 2^N+1."
+                    "(default: 513)")
+args = parser.parse_args()
+
 hparams = {
-    "n_spectrogram": 513,
-    "n_lstm_hidden": [100, 100, 150],
+    "n_spectrogram": args.n_spectrogram,
+    "n_lstm_hidden": args.n_lstm_hidden,
     "n_features_hidden": 40,
     "frame_length_ms": 15,
     "frame_shift_ms": 5,
