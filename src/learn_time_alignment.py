@@ -27,6 +27,7 @@ inputs = Input(shape=(None, hparams["n_spectrogram"]))
 connector = inputs
 
 for l in hparams["n_lstm_hidden"]:
+    print(l)
     lstmf, lstmb = Bidirectional(
         LSTM(
             units=l,
