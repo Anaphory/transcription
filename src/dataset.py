@@ -75,6 +75,7 @@ class TimeAlignmentSequence(Sequence):
             i = bisect.bisect(sizes, len(sg))
             sizes.insert(i, len(sg))
             self.files.insert(i, file)
+        self.max_len = sizes[-1]
 
         self.index_correction = list(range(len(self)))
         numpy.random.shuffle(self.index_correction)
@@ -100,7 +101,7 @@ class TimeAlignmentSequence(Sequence):
             feature_values = numpy.zeros(
                     (len(spectrograms),
                      len(spectrograms[-1]),
-                     len(SEGMENTS)))
+                     len(SEGMENTS) + 1))
 
             for i, file in enumerate(files):
                 feature_values[i] = self.features_from_textgrid(
@@ -121,7 +122,8 @@ class TimeAlignmentSequence(Sequence):
         windows_per_second = 1000 / hparams["frame_shift_ms"]
 
         feature_matrix = numpy.zeros(
-            (spectrogram_length, len(SEGMENTS)),
+            (spectrogram_length,
+             len(SEGMENTS) + 1),
             dtype=bool)
         for start, end, segment in phonetics.simple_transcript:
             start = float(start)
@@ -129,4 +131,65 @@ class TimeAlignmentSequence(Sequence):
             feature_matrix[
                 int(start * windows_per_second):int(end * windows_per_second),
                 SEGMENTS.index(segment)] = 1
+        return feature_matrix
+
+
+class ToStringSequence(TimeAlignmentSequence):
+    def __len__(self):
+        return -(-len(self.files) // self.batch_size)
+
+    def __getitem__(self, index):
+        try:
+            sgs = [
+                numpy.load(file.with_suffix(".npy").open("rb"))
+                for file in self.files[
+                        index * self.batch_size: (index + 1) * self.batch_size]]
+            spectrograms = numpy.zeros(
+                    (len(sgs),
+                     len(sgs[-1]),
+                     len(sgs[-1][-1])))
+            spectrogram_lengths = numpy.zeros(
+                len(sgs),
+                dtype=int)
+            for i, sg in enumerate(sgs):
+                spectrograms[i][:len(sg)] = sg
+                spectrogram_lengths[i] = len(sg)
+
+            files = self.files[index * self.batch_size:
+                        	   (index + 1) * self.batch_size]
+            labels = numpy.zeros(
+                (len(spectrograms),
+                 self.max_len),
+                dtype=int)
+            label_lengths = numpy.zeros(
+                len(spectrograms),
+                dtype=int)
+
+            for i, file in enumerate(files):
+                ls = self.labels_from_textgrid(
+                        file)
+                label_lengths[i] = len(ls)
+                labels[i][:len(ls)] = ls
+        except Exception as e:
+            # Keras eats all errors, make sure to at least see them in the console
+            print(e, end="\n\n")
+
+        return ([spectrograms,
+                 labels,
+                 spectrogram_lengths,
+                 label_lengths],
+                [numpy.zeros(len(spectrograms))])
+
+    @staticmethod
+    def labels_from_textgrid(file):
+        with file.with_suffix(".TextGrid").open() as tr:
+            textgrid = read_textgrid.TextGrid(tr.read())
+
+        phonetics = textgrid.tiers[0]
+
+        windows_per_second = 1000 / hparams["frame_shift_ms"]
+
+        feature_matrix = []
+        for start, end, segment in phonetics.simple_transcript:
+            feature_matrix.append(SEGMENTS.index(segment))
         return feature_matrix
