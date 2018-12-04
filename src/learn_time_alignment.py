@@ -19,18 +19,25 @@ from hparams import hparams
 
 import dataset
 
+
+def ctc_lambda_func(args):
+    y_pred, labels, input_length, label_length = args
+    # the 2 is critical here since the first couple outputs of the RNN
+    # tend to be garbage:
+    return K.ctc_batch_cost(labels, y_pred, input_length, label_length)
+
+
 time_aligned_data = dataset.TimeAlignmentSequence(batch_size=3)
-string_data = dataset.ToStringSequence(batch_size=1)
+string_data = dataset.ToStringSequence(batch_size=2)
 
-# Model parameters
-
+# Define all inputs
 inputs = Input(shape=(None, hparams["n_spectrogram"]))
 labels = Input(shape=[string_data.max_len])
 input_length = Input(shape=[1], dtype='int64')
 label_length = Input(shape=[1], dtype='int64')
 
+# Construct the core model: Stack some LSTM layers
 connector = inputs
-
 for l in hparams["n_lstm_hidden"]:
     print(l)
     lstmf, lstmb = Bidirectional(
@@ -46,17 +53,7 @@ output = Dense(
     units=len(dataset.SEGMENTS)+1,
     activation=softmax)(connector)
 
-
-def ctc_lambda_func(args):
-    y_pred, labels, input_length, label_length = args
-    # the 2 is critical here since the first couple outputs of the RNN
-    # tend to be garbage:
-    return K.ctc_batch_cost(labels, y_pred, input_length, label_length)
-
-loss_out = Lambda(
-    ctc_lambda_func, output_shape=(1,),
-    name='ctc')([output, labels, input_length, label_length])
-
+# Compile the core model
 model = Model(
     inputs=[inputs],
     outputs=[output])
@@ -64,6 +61,11 @@ model.compile(
     optimizer=Adadelta(),
     loss=[categorical_crossentropy],
     metrics=[categorical_accuracy])
+
+# Stick connectionist temporal classification on the end of the core model
+loss_out = Lambda(
+    ctc_lambda_func, output_shape=(1,),
+    name='ctc')([output, labels, input_length, label_length])
 
 ctc_model = Model(
     inputs=[inputs, labels, input_length, label_length],
@@ -76,6 +78,7 @@ ctc_model.compile(loss={'ctc': lambda y_true, y_pred: y_pred},
                       nesterov=True,
                       clipnorm=5))
 
+# Start training, first with time aligned data, then with pure output sequences
 old_e = 0
 for e in range(0, 200, 5):
     if e < 20:
@@ -99,7 +102,10 @@ for file in time_aligned_data.files:
     lines = [[], []]
     for segment, expected in zip(pred.argmax(2)[0],
                                 y.argmax(2)[0]):
-        segment = dataset.SEGMENTS[segment]
+        try:
+            segment = dataset.SEGMENTS[segment]
+        except IndexError: # NULL segment
+            segment = ''
         expected = dataset.SEGMENTS[expected]
         if (segment, expected) == before:
             pass
