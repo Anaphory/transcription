@@ -1,0 +1,142 @@
+File type = "ooTextFile"
+Object class = "TextGrid"
+
+xmin = 0 
+xmax = 3.52 
+tiers? <exists> 
+size = 1 
+item []: 
+    item [1]:
+        class = "IntervalTier" 
+        name = "Phonetic" 
+        xmin = 0 
+        xmax = 3.52 
+        intervals: size = 32 
+        intervals [1]:
+            xmin = 0 
+            xmax = 0.926125 
+            text = "H#" 
+        intervals [2]:
+            xmin = 0.926125 
+            xmax = 0.964375 
+            text = "m" 
+        intervals [3]:
+            xmin = 0.964375 
+            xmax = 1.02887 
+            text = "a" 
+        intervals [4]:
+            xmin = 1.02887 
+            xmax = 1.08906 
+            text = "n" 
+        intervals [5]:
+            xmin = 1.08906 
+            xmax = 1.18644 
+            text = "C" 
+        intervals [6]:
+            xmin = 1.18644 
+            xmax = 1.2125 
+            text = "@" 
+        intervals [7]:
+            xmin = 1.2125 
+            xmax = 1.29025 
+            text = "m" 
+        intervals [8]:
+            xmin = 1.29025 
+            xmax = 1.35319 
+            text = "E" 
+        intervals [9]:
+            xmin = 1.35319 
+            xmax = 1.43081 
+            text = "n" 
+        intervals [10]:
+            xmin = 1.43081 
+            xmax = 1.55706 
+            text = "S" 
+        intervals [11]:
+            xmin = 1.55706 
+            xmax = 1.66231 
+            text = "n" 
+        intervals [12]:
+            xmin = 1.66231 
+            xmax = 1.7335 
+            text = "f" 
+        intervals [13]:
+            xmin = 1.7335 
+            xmax = 1.78125 
+            text = "6" 
+        intervals [14]:
+            xmin = 1.78125 
+            xmax = 1.84731 
+            text = "t" 
+        intervals [15]:
+            xmin = 1.84731 
+            xmax = 1.922 
+            text = "r" 
+        intervals [16]:
+            xmin = 1.922 
+            xmax = 2.04 
+            text = "a:" 
+        intervals [17]:
+            xmin = 2.04 
+            xmax = 2.06225 
+            text = "g" 
+        intervals [18]:
+            xmin = 2.06225 
+            xmax = 2.13981 
+            text = "N" 
+        intervals [19]:
+            xmin = 2.13981 
+            xmax = 2.1805 
+            text = "k" 
+        intervals [20]:
+            xmin = 2.1805 
+            xmax = 2.21619 
+            text = "h" 
+        intervals [21]:
+            xmin = 2.21619 
+            xmax = 2.2391579192383353 
+            text = "a" 
+        intervals [22]:
+            xmin = 2.2391579192383353 
+            xmax = 2.2675 
+            text = "I" 
+        intervals [23]:
+            xmin = 2.2675 
+            xmax = 2.29575 
+            text = "n" 
+        intervals [24]:
+            xmin = 2.29575 
+            xmax = 2.34206 
+            text = "@" 
+        intervals [25]:
+            xmin = 2.34206 
+            xmax = 2.4164246071388926 
+            text = "e:" 
+        intervals [26]:
+            xmin = 2.4164246071388926 
+            xmax = 2.49987 
+            text = "6" 
+        intervals [27]:
+            xmin = 2.49987 
+            xmax = 2.55806 
+            text = "t" 
+        intervals [28]:
+            xmin = 2.55806 
+            xmax = 2.61169 
+            text = "b" 
+        intervals [29]:
+            xmin = 2.61169 
+            xmax = 2.62331 
+            text = "h" 
+        intervals [30]:
+            xmin = 2.62331 
+            xmax = 2.712646001013348 
+            text = "e:" 
+        intervals [31]:
+            xmin = 2.712646001013348 
+            xmax = 2.77956 
+            text = "6" 
+        intervals [32]:
+            xmin = 2.77956 
+            xmax = 2.91519 
+            text = "n" 

@@ -1,0 +1,106 @@
+File type = "ooTextFile"
+Object class = "TextGrid"
+
+xmin = 0 
+xmax = 2.208 
+tiers? <exists> 
+size = 1 
+item []: 
+    item [1]:
+        class = "IntervalTier" 
+        name = "Phonetic" 
+        xmin = 0 
+        xmax = 2.208 
+        intervals: size = 23 
+        intervals [1]:
+            xmin = 0 
+            xmax = 0.631375 
+            text = "H#" 
+        intervals [2]:
+            xmin = 0.631375 
+            xmax = 0.671188 
+            text = "d" 
+        intervals [3]:
+            xmin = 0.671188 
+            xmax = 0.69775 
+            text = "h" 
+        intervals [4]:
+            xmin = 0.69775 
+            xmax = 0.737 
+            text = "u:" 
+        intervals [5]:
+            xmin = 0.737 
+            xmax = 0.77775 
+            text = "d" 
+        intervals [6]:
+            xmin = 0.77775 
+            xmax = 0.785125 
+            text = "h" 
+        intervals [7]:
+            xmin = 0.785125 
+            xmax = 0.8414111582187384 
+            text = "a" 
+        intervals [8]:
+            xmin = 0.8414111582187384 
+            xmax = 0.886188 
+            text = "6" 
+        intervals [9]:
+            xmin = 0.886188 
+            xmax = 0.91025 
+            text = "f" 
+        intervals [10]:
+            xmin = 0.91025 
+            xmax = 0.960625 
+            text = "s" 
+        intervals [11]:
+            xmin = 0.960625 
+            xmax = 0.99425 
+            text = "d" 
+        intervals [12]:
+            xmin = 0.99425 
+            xmax = 1.01137 
+            text = "h" 
+        intervals [13]:
+            xmin = 1.01137 
+            xmax = 1.05069 
+            text = "I" 
+        intervals [14]:
+            xmin = 1.05069 
+            xmax = 1.09537 
+            text = "C" 
+        intervals [15]:
+            xmin = 1.09537 
+            xmax = 1.13944 
+            text = "v" 
+        intervals [16]:
+            xmin = 1.13944 
+            xmax = 1.16975 
+            text = "i:" 
+        intervals [17]:
+            xmin = 1.16975 
+            xmax = 1.20244 
+            text = "d" 
+        intervals [18]:
+            xmin = 1.20244 
+            xmax = 1.28913 
+            text = "6" 
+        intervals [19]:
+            xmin = 1.28913 
+            xmax = 1.35944 
+            text = "z" 
+        intervals [20]:
+            xmin = 1.35944 
+            xmax = 1.43675 
+            text = "E" 
+        intervals [21]:
+            xmin = 1.43675 
+            xmax = 1.49919 
+            text = "t" 
+        intervals [22]:
+            xmin = 1.49919 
+            xmax = 1.584 
+            text = "s" 
+        intervals [23]:
+            xmin = 1.584 
+            xmax = 1.68525 
+            text = "n" 

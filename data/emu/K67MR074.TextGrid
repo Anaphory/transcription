@@ -1,0 +1,118 @@
+File type = "ooTextFile"
+Object class = "TextGrid"
+
+xmin = 0 
+xmax = 3.136 
+tiers? <exists> 
+size = 1 
+item []: 
+    item [1]:
+        class = "IntervalTier" 
+        name = "Phonetic" 
+        xmin = 0 
+        xmax = 3.136 
+        intervals: size = 26 
+        intervals [1]:
+            xmin = 0 
+            xmax = 0.946562 
+            text = "H#" 
+        intervals [2]:
+            xmin = 0.946562 
+            xmax = 0.997375 
+            text = "l" 
+        intervals [3]:
+            xmin = 0.997375 
+            xmax = 1.0771560020633584 
+            text = "a" 
+        intervals [4]:
+            xmin = 1.0771560020633584 
+            xmax = 1.11919 
+            text = "I" 
+        intervals [5]:
+            xmin = 1.11919 
+            xmax = 1.13575 
+            text = "d" 
+        intervals [6]:
+            xmin = 1.13575 
+            xmax = 1.22637 
+            text = "6" 
+        intervals [7]:
+            xmin = 1.22637 
+            xmax = 1.27969 
+            text = "d" 
+        intervals [8]:
+            xmin = 1.27969 
+            xmax = 1.28794 
+            text = "h" 
+        intervals [9]:
+            xmin = 1.28794 
+            xmax = 1.351451647999267 
+            text = "a" 
+        intervals [10]:
+            xmin = 1.351451647999267 
+            xmax = 1.38394 
+            text = "6" 
+        intervals [11]:
+            xmin = 1.38394 
+            xmax = 1.42306 
+            text = "f" 
+        intervals [12]:
+            xmin = 1.42306 
+            xmax = 1.492 
+            text = "d" 
+        intervals [13]:
+            xmin = 1.492 
+            xmax = 1.507 
+            text = "h" 
+        intervals [14]:
+            xmin = 1.507 
+            xmax = 1.62419 
+            text = "o:" 
+        intervals [15]:
+            xmin = 1.62419 
+            xmax = 1.661 
+            text = "r" 
+        intervals [16]:
+            xmin = 1.661 
+            xmax = 1.69606 
+            text = "I" 
+        intervals [17]:
+            xmin = 1.69606 
+            xmax = 1.75975 
+            text = "s" 
+        intervals [18]:
+            xmin = 1.75975 
+            xmax = 1.82881 
+            text = "n" 
+        intervals [19]:
+            xmin = 1.82881 
+            xmax = 1.87088 
+            text = "I" 
+        intervals [20]:
+            xmin = 1.87088 
+            xmax = 1.92294 
+            text = "C" 
+        intervals [21]:
+            xmin = 1.92294 
+            xmax = 2.02544 
+            text = "b" 
+        intervals [22]:
+            xmin = 2.02544 
+            xmax = 2.087 
+            text = "l" 
+        intervals [23]:
+            xmin = 2.087 
+            xmax = 2.2287048077658027 
+            text = "a" 
+        intervals [24]:
+            xmin = 2.2287048077658027 
+            xmax = 2.29225 
+            text = "I" 
+        intervals [25]:
+            xmin = 2.29225 
+            xmax = 2.33694 
+            text = "b" 
+        intervals [26]:
+            xmin = 2.33694 
+            xmax = 2.49181 
+            text = "m" 

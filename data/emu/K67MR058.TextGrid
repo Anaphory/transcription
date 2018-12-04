@@ -1,0 +1,78 @@
+File type = "ooTextFile"
+Object class = "TextGrid"
+
+xmin = 0 
+xmax = 2.688 
+tiers? <exists> 
+size = 1 
+item []: 
+    item [1]:
+        class = "IntervalTier" 
+        name = "Phonetic" 
+        xmin = 0 
+        xmax = 2.688 
+        intervals: size = 16 
+        intervals [1]:
+            xmin = 0 
+            xmax = 0.658188 
+            text = "H#" 
+        intervals [2]:
+            xmin = 0.658188 
+            xmax = 0.718562 
+            text = "d" 
+        intervals [3]:
+            xmin = 0.718562 
+            xmax = 0.733625 
+            text = "h" 
+        intervals [4]:
+            xmin = 0.733625 
+            xmax = 0.7949336830265972 
+            text = "a" 
+        intervals [5]:
+            xmin = 0.7949336830265972 
+            xmax = 0.82925 
+            text = "I" 
+        intervals [6]:
+            xmin = 0.82925 
+            xmax = 0.88225 
+            text = "n" 
+        intervals [7]:
+            xmin = 0.88225 
+            xmax = 0.972812 
+            text = "@" 
+        intervals [8]:
+            xmin = 0.972812 
+            xmax = 1.0895288827662821 
+            text = "u:" 
+        intervals [9]:
+            xmin = 1.0895288827662821 
+            xmax = 1.15138 
+            text = "6" 
+        intervals [10]:
+            xmin = 1.15138 
+            xmax = 1.20675 
+            text = "g" 
+        intervals [11]:
+            xmin = 1.20675 
+            xmax = 1.221 
+            text = "h" 
+        intervals [12]:
+            xmin = 1.221 
+            xmax = 1.28569 
+            text = "e:" 
+        intervals [13]:
+            xmin = 1.28569 
+            xmax = 1.34194 
+            text = "t" 
+        intervals [14]:
+            xmin = 1.34194 
+            xmax = 1.49294 
+            text = "f" 
+        intervals [15]:
+            xmin = 1.49294 
+            xmax = 1.6031077907353417 
+            text = "o:" 
+        intervals [16]:
+            xmin = 1.6031077907353417 
+            xmax = 1.71494 
+            text = "6" 
