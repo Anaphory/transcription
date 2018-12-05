@@ -67,10 +67,8 @@ for l in hparams["n_lstm_hidden"]:
 
     connector = keras.layers.Concatenate(axis=-1)([lstmf, lstmb])
 
-output = LSTM(
-    units=len(dataset.SEGMENTS),
-    dropout=0.6,
-    return_sequences=True,
+output = Dense(
+    units=len(dataset.SEGMENTS)+1,
     activation=softmax)(connector)
 
 # Compile the core model
