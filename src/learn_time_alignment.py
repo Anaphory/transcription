@@ -26,6 +26,17 @@ def ctc_lambda_func(args):
     # tend to be garbage:
     return K.ctc_batch_cost(labels, y_pred, input_length, label_length)
 
+
+def labels_to_text(labels):
+    ret = []
+    for c in labels:
+        if c == len(dataset.SEGMENTS):  # CTC Blank
+            ret.append("")
+        else:
+            ret.append(dataset.SEGMENTS[c])
+    return "".join(ret)
+
+
 # Prepare the data
 
 data_files = [f for f in dataset.DATA_PATH.glob("*.TextGrid")]
@@ -97,6 +108,17 @@ ctc_model.compile(loss={'ctc': lambda y_true, y_pred: y_pred},
                       clipnorm=5))
 
 
+def decode_batch(word_batch, test_func=K.function([inputs], [output])):
+    out = test_func([word_batch])[0]
+    ret = []
+    for j in range(out.shape[0]):
+        out.best = list(np.argmax(out[j, 2:], 1))
+        out_best = [k for k, g in itertools.groupby(out_best)]
+        oustr = labels_to_text(out_best)
+        ret.append(outstr)
+    return ret
+
+
 # Start training, first with time aligned data, then with pure output sequences
 old_e = 0
 for e in range(0, 200, 5):
@@ -105,12 +127,11 @@ for e in range(0, 200, 5):
             time_aligned_data, epochs=e, initial_epoch=old_e,
             validation_data=validation_data)
         old_e = e
-        print(model.evaluate_generator(time_aligned_data))
     else:
         ctc_model.fit_generator(
             string_data, epochs=e, initial_epoch=old_e)
         old_e = e
-        print(ctc_model.evaluate_generator(string_data))
+    print("\n".join(decode_batch(validation_data)))
 
 
 # Example prediction
