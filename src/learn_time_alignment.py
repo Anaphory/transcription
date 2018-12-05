@@ -58,7 +58,7 @@ validation_data = dataset.TimeAlignmentSequence(
 test_data = dataset.TimeAlignmentSequence(
     batch_size=3, files=test)
 
-string_data = dataset.ToStringSequence(batch_size=2)
+string_data = dataset.ToStringSequence(batch_size=2, files=training)
 
 # Define all inputs
 inputs = Input(shape=(None, hparams["n_spectrogram"]))
@@ -98,10 +98,11 @@ def decode_batch(word_batch, test_func=model.predict):
     for i in range(len(word_batch)):
         item, target = word_batch[i]
         out = test_func(item)
-        for output in out:
+        for t, output in zip(target, out):
+            actual = [k for k, g in itertools.groupby(numpy.argmax(t, 1))]
             out_best = [k for k, g in itertools.groupby(numpy.argmax(output, 1))]
-            outstr = labels_to_text(out_best)
-            ret.append(outstr)
+            ret.append((labels_to_text(actual),
+                        labels_to_text(out_best)))
     return ret
 
 
@@ -123,8 +124,8 @@ ctc_model.compile(loss={'ctc': lambda y_true, y_pred: y_pred},
 
 # Start training, first with time aligned data, then with pure output sequences
 old_e = 0
-for e in range(0, 200, 5):
-    if e < 20:
+for e in range(0, 250, 5):
+    if e < 200:
         model.fit_generator(
             time_aligned_data, epochs=e, initial_epoch=old_e,
             validation_data=validation_data)
@@ -133,7 +134,8 @@ for e in range(0, 200, 5):
         ctc_model.fit_generator(
             string_data, epochs=e, initial_epoch=old_e)
         old_e = e
-    print("\n".join(''.join(y) for y in decode_batch(validation_data)))
+    for x, y in decode_batch(validation_data):
+        print(''.join(x), "\t", ''.join(y))
 
 
 # Example prediction
