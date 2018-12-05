@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+import itertools
 
 import numpy
 
@@ -34,7 +35,7 @@ def labels_to_text(labels):
             ret.append("")
         else:
             ret.append(dataset.SEGMENTS[c])
-    return "".join(ret)
+    return ret
 
 
 # Prepare the data
@@ -91,6 +92,18 @@ model.compile(
     loss=[categorical_crossentropy],
     metrics=[categorical_accuracy])
 
+
+def decode_batch(word_batch, test_func=model.predict):
+    ret = []
+    for item, target in word_batch:
+        out = test_func(item)
+        for output in out:
+            out_best = [k for k, g in itertools.groupby(numpy.argmax(output, 1))]
+            outstr = labels_to_text(out_best)
+            ret.append(outstr)
+    return ret
+
+
 # Stick connectionist temporal classification on the end of the core model
 loss_out = Lambda(
     ctc_lambda_func, output_shape=(1,),
@@ -106,18 +119,6 @@ ctc_model.compile(loss={'ctc': lambda y_true, y_pred: y_pred},
                       momentum=0.9,
                       nesterov=True,
                       clipnorm=5))
-
-
-def decode_batch(word_batch, test_func=K.function([inputs], [output])):
-    out = test_func([word_batch])[0]
-    ret = []
-    for j in range(out.shape[0]):
-        out.best = list(np.argmax(out[j, 2:], 1))
-        out_best = [k for k, g in itertools.groupby(out_best)]
-        oustr = labels_to_text(out_best)
-        ret.append(outstr)
-    return ret
-
 
 # Start training, first with time aligned data, then with pure output sequences
 old_e = 0
