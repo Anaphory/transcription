@@ -26,8 +26,26 @@ def ctc_lambda_func(args):
     # tend to be garbage:
     return K.ctc_batch_cost(labels, y_pred, input_length, label_length)
 
+# Prepare the data
 
-time_aligned_data = dataset.TimeAlignmentSequence(batch_size=3)
+data_files = [f for f in dataset.DATA_PATH.glob("*.TextGrid")]
+
+# Shuffle the list of files
+data_files.sort(key=lambda x: numpy.random.random())
+# Inverse floor, in order to get the ceiling operation, to make sure that at least one entry is in the validation set.
+n_test = -int(-0.1 * len(data_files))
+assert len(data_files) > 2 * n_test
+
+training = data_files[2 * n_test:]
+test = data_files[:n_test]
+validation = data_files[n_test:2 * n_test]
+time_aligned_data = dataset.TimeAlignmentSequence(
+    batch_size=3, files=training)
+validation_data = dataset.TimeAlignmentSequence(
+    batch_size=3, files=validation)
+test_data = dataset.TimeAlignmentSequence(
+    batch_size=3, files=test)
+
 string_data = dataset.ToStringSequence(batch_size=2)
 
 # Define all inputs
@@ -49,8 +67,10 @@ for l in hparams["n_lstm_hidden"]:
 
     connector = keras.layers.Concatenate(axis=-1)([lstmf, lstmb])
 
-output = Dense(
-    units=len(dataset.SEGMENTS)+1,
+output = LSTM(
+    units=len(dataset.SEGMENTS),
+    dropout=0.6,
+    return_sequences=True,
     activation=softmax)(connector)
 
 # Compile the core model
@@ -78,12 +98,14 @@ ctc_model.compile(loss={'ctc': lambda y_true, y_pred: y_pred},
                       nesterov=True,
                       clipnorm=5))
 
+
 # Start training, first with time aligned data, then with pure output sequences
 old_e = 0
 for e in range(0, 200, 5):
     if e < 20:
         model.fit_generator(
-            time_aligned_data, epochs=e, initial_epoch=old_e)
+            time_aligned_data, epochs=e, initial_epoch=old_e,
+            validation_data=validation_data)
         old_e = e
         print(model.evaluate_generator(time_aligned_data))
     else:
@@ -94,7 +116,7 @@ for e in range(0, 200, 5):
 
 
 # Example prediction
-for file in time_aligned_data.files:
+for file in data_files:
     x, y = dataset.TimeAlignmentSequence(files=[file])[0]
     pred = model.predict(x)
 
