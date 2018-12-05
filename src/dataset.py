@@ -39,26 +39,6 @@ def stft(signals):
                                   n_fft, pad_end=False)
 
 
-g = tf.Graph()
-with g.as_default():
-    waveform = tf.squeeze(
-        tf.contrib.ffmpeg.decode_audio(
-            tf.read_file(tf.placeholder(tf.string, name="filename")),
-            file_format=tf.placeholder(tf.string, name="format"),
-            samples_per_second=hparams["sample_rate"],
-            channel_count=1))
-
-    log_mag_spectrogram = tf.log(tf.abs(stft(waveform) + 1e-8))
-
-
-
-def read_audio(filename, format):
-    with tf.Session(graph=g) as sess:
-        return sess.run(log_mag_spectrogram, feed_dict={
-            'filename:0': str(filename),
-            'format:0': format})
-
-
 class TimeAlignmentSequence(Sequence):
     def __init__(self, batch_size=10, files=None):
         if files is None:
@@ -70,6 +50,7 @@ class TimeAlignmentSequence(Sequence):
             try:
                 sg = numpy.load(file.with_suffix(".npy").open("rb"))
             except (OSError, FileNotFoundError):
+                from audio_prep import read_audio
                 sg = read_audio(file.with_suffix(".wav"), 'wav')
                 numpy.save(file.with_suffix(".npy").open("wb"), sg)
             i = bisect.bisect(sizes, len(sg))

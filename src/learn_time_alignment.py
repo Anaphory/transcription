@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+import itertools
 
 import numpy
 
@@ -19,18 +20,54 @@ from hparams import hparams
 
 import dataset
 
-time_aligned_data = dataset.TimeAlignmentSequence(batch_size=3)
-string_data = dataset.ToStringSequence(batch_size=1)
 
-# Model parameters
+def ctc_lambda_func(args):
+    y_pred, labels, input_length, label_length = args
+    # the 2 is critical here since the first couple outputs of the RNN
+    # tend to be garbage:
+    return K.ctc_batch_cost(labels, y_pred, input_length, label_length)
 
+
+def labels_to_text(labels):
+    ret = []
+    for c in labels:
+        if c == len(dataset.SEGMENTS):  # CTC Blank
+            ret.append("")
+        else:
+            ret.append(dataset.SEGMENTS[c])
+    return ret
+
+
+# Prepare the data
+
+data_files = [f for f in dataset.DATA_PATH.glob("*.TextGrid")]
+
+# Shuffle the list of files
+data_files.sort(key=lambda x: numpy.random.random())
+# Inverse floor, in order to get the ceiling operation, to make sure that at least one entry is in the validation set.
+n_test = -int(-0.1 * len(data_files))
+assert len(data_files) > 2 * n_test
+
+training = data_files[2 * n_test:]
+test = data_files[:n_test]
+validation = data_files[n_test:2 * n_test]
+time_aligned_data = dataset.TimeAlignmentSequence(
+    batch_size=3, files=training)
+validation_data = dataset.TimeAlignmentSequence(
+    batch_size=3, files=validation)
+test_data = dataset.TimeAlignmentSequence(
+    batch_size=3, files=test)
+
+string_data = dataset.ToStringSequence(batch_size=2)
+
+# Define all inputs
 inputs = Input(shape=(None, hparams["n_spectrogram"]))
 labels = Input(shape=[string_data.max_len])
 input_length = Input(shape=[1], dtype='int64')
 label_length = Input(shape=[1], dtype='int64')
 
+# Construct the core model: Stack some LSTM layers
 connector = inputs
-
 for l in hparams["n_lstm_hidden"]:
     print(l)
     lstmf, lstmb = Bidirectional(
@@ -46,17 +83,7 @@ output = Dense(
     units=len(dataset.SEGMENTS)+1,
     activation=softmax)(connector)
 
-
-def ctc_lambda_func(args):
-    y_pred, labels, input_length, label_length = args
-    # the 2 is critical here since the first couple outputs of the RNN
-    # tend to be garbage:
-    return K.ctc_batch_cost(labels, y_pred, input_length, label_length)
-
-loss_out = Lambda(
-    ctc_lambda_func, output_shape=(1,),
-    name='ctc')([output, labels, input_length, label_length])
-
+# Compile the core model
 model = Model(
     inputs=[inputs],
     outputs=[output])
@@ -64,6 +91,24 @@ model.compile(
     optimizer=Adadelta(),
     loss=[categorical_crossentropy],
     metrics=[categorical_accuracy])
+
+
+def decode_batch(word_batch, test_func=model.predict):
+    ret = []
+    for i in range(len(word_batch)):
+        item, target = word_batch[i]
+        out = test_func(item)
+        for output in out:
+            out_best = [k for k, g in itertools.groupby(numpy.argmax(output, 1))]
+            outstr = labels_to_text(out_best)
+            ret.append(outstr)
+    return ret
+
+
+# Stick connectionist temporal classification on the end of the core model
+loss_out = Lambda(
+    ctc_lambda_func, output_shape=(1,),
+    name='ctc')([output, labels, input_length, label_length])
 
 ctc_model = Model(
     inputs=[inputs, labels, input_length, label_length],
@@ -76,22 +121,23 @@ ctc_model.compile(loss={'ctc': lambda y_true, y_pred: y_pred},
                       nesterov=True,
                       clipnorm=5))
 
+# Start training, first with time aligned data, then with pure output sequences
 old_e = 0
 for e in range(0, 200, 5):
     if e < 20:
         model.fit_generator(
-            time_aligned_data, epochs=e, initial_epoch=old_e)
+            time_aligned_data, epochs=e, initial_epoch=old_e,
+            validation_data=validation_data)
         old_e = e
-        print(model.evaluate_generator(time_aligned_data))
     else:
         ctc_model.fit_generator(
             string_data, epochs=e, initial_epoch=old_e)
         old_e = e
-        print(ctc_model.evaluate_generator(string_data))
+    print("\n".join(''.join(y) for y in decode_batch(validation_data)))
 
 
 # Example prediction
-for file in time_aligned_data.files:
+for file in data_files:
     x, y = dataset.TimeAlignmentSequence(files=[file])[0]
     pred = model.predict(x)
 
@@ -99,7 +145,10 @@ for file in time_aligned_data.files:
     lines = [[], []]
     for segment, expected in zip(pred.argmax(2)[0],
                                 y.argmax(2)[0]):
-        segment = dataset.SEGMENTS[segment]
+        try:
+            segment = dataset.SEGMENTS[segment]
+        except IndexError: # NULL segment
+            segment = ''
         expected = dataset.SEGMENTS[expected]
         if (segment, expected) == before:
             pass
