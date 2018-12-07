@@ -73,7 +73,7 @@ for l in hparams["n_lstm_hidden"]:
     lstmf, lstmb = Bidirectional(
         LSTM(
             units=l,
-            dropout=0.3,
+            dropout=0.1,
             return_sequences=True,
         ), merge_mode=None)(connector)
 
@@ -124,8 +124,8 @@ ctc_model.compile(loss={'ctc': lambda y_true, y_pred: y_pred},
 
 # Start training, first with time aligned data, then with pure output sequences
 old_e = 0
-for e in range(0, 250, 5):
-    if e < 200:
+for e in range(0, 2500, 5):
+    if e < 50:
         model.fit_generator(
             time_aligned_data, epochs=e, initial_epoch=old_e,
             validation_data=validation_data)
