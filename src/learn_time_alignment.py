@@ -124,8 +124,8 @@ ctc_model.compile(loss={'ctc': lambda y_true, y_pred: y_pred},
 
 # Start training, first with time aligned data, then with pure output sequences
 old_e = 0
-for e in range(0, 250, 5):
-    if e < 200:
+for e in range(0, 2500, 5):
+    if e < 20:
         model.fit_generator(
             time_aligned_data, epochs=e, initial_epoch=old_e,
             validation_data=validation_data)
