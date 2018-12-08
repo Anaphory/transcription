@@ -38,31 +38,9 @@ def labels_to_text(labels):
     return ret
 
 
-# Prepare the data
-
-data_files = [f for f in dataset.DATA_PATH.glob("*.TextGrid")]
-
-# Shuffle the list of files
-data_files.sort(key=lambda x: numpy.random.random())
-# Inverse floor, in order to get the ceiling operation, to make sure that at least one entry is in the validation set.
-n_test = -int(-0.1 * len(data_files))
-assert len(data_files) > 2 * n_test
-
-training = data_files[2 * n_test:]
-test = data_files[:n_test]
-validation = data_files[n_test:2 * n_test]
-time_aligned_data = dataset.TimeAlignmentSequence(
-    batch_size=3, files=training)
-validation_data = dataset.TimeAlignmentSequence(
-    batch_size=3, files=validation)
-test_data = dataset.TimeAlignmentSequence(
-    batch_size=3, files=test)
-
-string_data = dataset.ToStringSequence(batch_size=2, files=training)
-
 # Define all inputs
 inputs = Input(shape=(None, hparams["n_spectrogram"]))
-labels = Input(shape=[string_data.max_len])
+labels = Input(shape=[hparams["max_string_length"]])
 input_length = Input(shape=[1], dtype='int64')
 label_length = Input(shape=[1], dtype='int64')
 
@@ -122,10 +100,34 @@ ctc_model.compile(loss={'ctc': lambda y_true, y_pred: y_pred},
                       nesterov=True,
                       clipnorm=5))
 
+# Prepare the data
+
+data_files = [f for f in dataset.DATA_PATH.glob("*.TextGrid")]
+
+# Shuffle the list of files
+data_files.sort(key=lambda x: numpy.random.random())
+# Inverse floor, in order to get the ceiling operation, to make sure that at least one entry is in the validation set.
+n_test = -int(-0.1 * len(data_files))
+assert len(data_files) > 2 * n_test
+
+training = data_files[2 * n_test:]
+test = data_files[:n_test]
+validation = data_files[n_test:2 * n_test]
+time_aligned_data = dataset.TimeAlignmentSequence(
+    batch_size=3, files=training)
+validation_data = dataset.TimeAlignmentSequence(
+    batch_size=3, files=validation)
+test_data = dataset.TimeAlignmentSequence(
+    batch_size=3, files=test)
+
+string_data = dataset.ToStringSequence(batch_size=2, files=training)
+
 # Start training, first with time aligned data, then with pure output sequences
 old_e = 0
-for e in range(0, 2500, 5):
-    if e < 50:
+for e in range(0, 2500, 4):
+    string_data = dataset.ChoppedStringSequence(
+        chunk=5+e, batch_size=2, files=training)
+    if e < 20:
         model.fit_generator(
             time_aligned_data, epochs=e, initial_epoch=old_e,
             validation_data=validation_data)

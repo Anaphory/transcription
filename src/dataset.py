@@ -2,9 +2,10 @@
 
 """Various sound datasets"""
 
+from pathlib import Path
 import numpy
 import bisect
-from pathlib import Path
+import itertools
 
 import tensorflow as tf
 from keras.utils import Sequence
@@ -44,7 +45,7 @@ class TimeAlignmentSequence(Sequence):
         if files is None:
             files = DATA_PATH.glob("*.TextGrid")
         self.batch_size = batch_size
-        sizes = []
+        self.sizes = []
         self.files = []
         for file in files:
             try:
@@ -53,13 +54,12 @@ class TimeAlignmentSequence(Sequence):
                 from audio_prep import read_audio
                 sg = read_audio(file.with_suffix(".wav"), 'wav')
                 numpy.save(file.with_suffix(".npy").open("wb"), sg)
-            i = bisect.bisect(sizes, len(sg))
-            sizes.insert(i, len(sg))
+            i = bisect.bisect(self.sizes, len(sg))
+            self.sizes.insert(i, len(sg))
             self.files.insert(i, file)
-        self.max_len = sizes[-1]
 
         self.index_correction = list(range(len(self)))
-        numpy.random.shuffle(self.index_correction)
+        self.index_correction.sort(key=lambda x: numpy.random.random())
 
     def __len__(self):
         return -(-len(self.files) // self.batch_size)
@@ -140,7 +140,7 @@ class ToStringSequence(TimeAlignmentSequence):
                         	   (index + 1) * self.batch_size]
             labels = numpy.zeros(
                 (len(spectrograms),
-                 self.max_len),
+                 hparams["max_string_length"]),
                 dtype=int)
             label_lengths = numpy.zeros(
                 len(spectrograms),
@@ -148,8 +148,8 @@ class ToStringSequence(TimeAlignmentSequence):
 
             for i, file in enumerate(files):
                 ls = self.labels_from_textgrid(
-                        file)
-                label_lengths[i] = len(ls)
+                        file, spectrograms.shape[1])
+                label_lengths[i] = len(ls) or 1
                 labels[i][:len(ls)] = ls
         except Exception as e:
             # Keras eats all errors, make sure to at least see them in the console
@@ -162,7 +162,7 @@ class ToStringSequence(TimeAlignmentSequence):
                 [numpy.zeros(len(spectrograms))])
 
     @staticmethod
-    def labels_from_textgrid(file):
+    def labels_from_textgrid(file, spectrogram_length=100):
         with file.with_suffix(".TextGrid").open() as tr:
             textgrid = read_textgrid.TextGrid(tr.read())
 
@@ -172,5 +172,64 @@ class ToStringSequence(TimeAlignmentSequence):
 
         feature_matrix = []
         for start, end, segment in phonetics.simple_transcript:
-            feature_matrix.append(SEGMENTS.index(segment))
+            if float(start) < spectrogram_length / windows_per_second:
+                feature_matrix.append(SEGMENTS.index(segment))
         return feature_matrix
+
+
+class ChoppedStringSequence(TimeAlignmentSequence):
+    def __init__(self, chunk=20, **kwargs):
+        self.chunks = []
+        super().__init__(**kwargs)
+        for file, size in zip(self.files, self.sizes):
+            for i in range(0, size, chunk):
+                self.chunks.append((file, slice(i, i+chunk)))
+        self.chunks.sort(key=lambda x: numpy.random.random())
+
+    def __len__(self):
+        return -(-len(self.chunks) // self.batch_size)
+
+    def __getitem__(self, index):
+        try:
+            sgs = [
+                numpy.load(file.with_suffix(".npy").open("rb"))[slice]
+                for file, slice in self.chunks[
+                        index * self.batch_size: (index + 1) * self.batch_size]]
+            spectrograms = numpy.zeros(
+                    (len(sgs),
+                     max(len(i) for i in sgs),
+                     len(sgs[-1][-1])))
+            spectrogram_lengths = numpy.zeros(
+                len(sgs),
+                dtype=int)
+            for i, sg in enumerate(sgs):
+                spectrograms[i][:len(sg)] = sg
+                spectrogram_lengths[i] = len(sg)
+
+            files = self.chunks[index * self.batch_size:
+                        	    (index + 1) * self.batch_size]
+            labels = numpy.zeros(
+                (len(spectrograms),
+                 hparams["max_string_length"]),
+                dtype=int)
+            label_lengths = numpy.zeros(
+                len(spectrograms),
+                dtype=int)
+
+            for i, (file, slice) in enumerate(files):
+                ls = [k for k, g in itertools.groupby(
+                    numpy.argmax(self.features_from_textgrid(
+                        file, spectrograms.shape[1])[slice], 1))]
+                label_lengths[i] = len(ls) or 1
+                labels[i][:len(ls)] = ls
+        except Exception as e:
+            # Keras eats all errors, make sure to at least see them in the console
+            import traceback
+            traceback.print_exc()
+            import pdb; pdb.set_trace()
+
+        return ([spectrograms,
+                 labels,
+                 spectrogram_lengths,
+                 label_lengths],
+                [numpy.zeros(len(spectrograms))])

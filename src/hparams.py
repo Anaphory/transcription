@@ -23,4 +23,5 @@ hparams = {
     "prediction_time_at_least_ms": 40,
     "sample_rate": 44100,
     "griffin_lim_iters": 60,
+    "max_string_length": 60,
 }
