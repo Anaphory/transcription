@@ -124,9 +124,9 @@ string_data = dataset.ToStringSequence(batch_size=2, files=training)
 
 # Start training, first with time aligned data, then with pure output sequences
 old_e = 0
-for e in range(0, 2500, 4):
+for e in range(0, 5000, 8):
     string_data = dataset.ChoppedStringSequence(
-        chunk=5+e, batch_size=2, files=training)
+        chunk=5+e//4, batch_size=2, files=training)
     if e < 20:
         model.fit_generator(
             time_aligned_data, epochs=e, initial_epoch=old_e,
