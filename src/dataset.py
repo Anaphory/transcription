@@ -21,9 +21,8 @@ except NameError:
     this = Path("__file__").absolute()
 DATA_PATH = this.parent.parent / "data" / "selection"
 
-
-SEGMENTS = ['', '#H', '*', '2:', '6', '9', '@', 'ASpause', 'C', 'E', 'E:',
-            'H#', 'I', 'I6', 'N', 'O', 'Q', 'S', 'U', 'Y', 'a', 'a:', 'b', 'd',
+SEGMENTS = ['XXX', '*', '2:', '6', '9', '@', 'C', 'E', 'E:',
+            'I', 'I6', 'N', 'O', 'Q', 'S', 'U', 'Y', 'a', 'a:', 'b', 'd',
             'e:', 'f', 'g', 'h', 'i:', 'j', 'k', 'l', 'm', 'n', 'o:', 'p', 'r',
             's', 't', 'u:', 'v', 'x', 'y:', 'z']
 
@@ -107,6 +106,8 @@ class TimeAlignmentSequence(Sequence):
              len(SEGMENTS) + 1),
             dtype=bool)
         for start, end, segment in phonetics.simple_transcript:
+            if segment not in SEGMENTS:
+                continue
             start = float(start)
             end = float(end)
             feature_matrix[
@@ -178,12 +179,13 @@ class ToStringSequence(TimeAlignmentSequence):
 
 
 class ChoppedStringSequence(TimeAlignmentSequence):
-    def __init__(self, chunk=20, **kwargs):
+    def __init__(self, chunk_size=20, **kwargs):
         self.chunks = []
         super().__init__(**kwargs)
         for file, size in zip(self.files, self.sizes):
-            for i in range(0, size, chunk):
-                self.chunks.append((file, slice(i, i+chunk)))
+            for i in range(0, size, chunk_size):
+                chunk = slice(i, i+chunk_size)
+                self.chunks.append((file, chunk))
         self.chunks.sort(key=lambda x: numpy.random.random())
 
     def __len__(self):
@@ -191,10 +193,11 @@ class ChoppedStringSequence(TimeAlignmentSequence):
 
     def __getitem__(self, index):
         try:
+            data = self.chunks[
+                index * self.batch_size: (index + 1) * self.batch_size]
             sgs = [
                 numpy.load(file.with_suffix(".npy").open("rb"))[slice]
-                for file, slice in self.chunks[
-                        index * self.batch_size: (index + 1) * self.batch_size]]
+                for file, slice in data]
             spectrograms = numpy.zeros(
                     (len(sgs),
                      max(len(i) for i in sgs),
@@ -219,9 +222,10 @@ class ChoppedStringSequence(TimeAlignmentSequence):
             for i, (file, slice) in enumerate(files):
                 ls = [k for k, g in itertools.groupby(
                     numpy.argmax(self.features_from_textgrid(
-                        file, spectrograms.shape[1])[slice], 1))]
+                        file, self.sizes[-1]), 1)[slice])]
                 label_lengths[i] = len(ls) or 1
                 labels[i][:len(ls)] = ls
+
         except Exception as e:
             # Keras eats all errors, make sure to at least see them in the console
             import traceback
