@@ -158,27 +158,28 @@ for e in range(0, 5000, 2):
     old_e = e
 
     # Do some visual validation
-    plt.figure()
+    plt.figure(figsize=(8, 35))
     j = 1
-    for i in range(3):
+    for i in range(7):
         (xs, labels, l_x, l_labels), y = string_data[i]
         for x, ys, target, l, lx in zip(
                 xs, paths([xs, l_x])[0], labels, l_labels[..., 0], l_x):
             target = ''.join(labels_to_text(target[:l]))
             pred = ''.join(i or '_' for i in labels_to_text(ys[:l]))
-            plt.subplot(2, 7, j); j += 1
-
-            plt.imshow(x.T, aspect='auto')
-            plt.subplot(2, 7, j); j += 1
-
-            d = model.predict([[x]])[0]
-            plt.imshow(d.T, aspect='auto')
-            plt.yticks(ticks=range(len(dataset.SEGMENTS)+1),
-                       labels=dataset.SEGMENTS + ["ε"])
             # plt.imshow(x[:lx].T[::-1], vmin=-20, vmax=0,
             #           aspect='auto')
             # plt.axis('off')
             # plt.xlabel(target)
+
+            plt.subplot(7, 2, j); j += 1
+            plt.imshow(x.T, aspect='auto')
+
+            plt.subplot(7, 2, j); j += 1
+            d = model.predict([[x]])[0]
+            plt.imshow(d.T, aspect='auto')
+            plt.yticks(ticks=range(len(dataset.SEGMENTS)+1),
+                       labels=dataset.SEGMENTS + ["ε"])
+
             plt.text(0, 0, target, horizontalalignment='left', verticalalignment='top')
             plt.text(0, 4, pred, horizontalalignment='left', verticalalignment='top')
     plt.savefig("{:}/prediction-{:09d}.pdf".format(log_dir, e))
