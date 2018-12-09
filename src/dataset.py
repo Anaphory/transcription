@@ -205,7 +205,7 @@ class ChoppedStringSequence(TimeAlignmentSequence):
             for i, (file, slice) in enumerate(data):
                 sg = numpy.load(file.with_suffix(".npy").open("rb"))
                 s = len(sg[slice])
-                spectrograms[i][:s] = sg[slice]
+                spectrograms[i][:s] = 2 * (sg[slice]-sg.min())/(sg.max()-sg.min()) - 1
                 if s <= hparams["chop"]:
                     s = hparams["chop"] + 1
                 spectrogram_lengths[i] = s
@@ -224,7 +224,7 @@ class ChoppedStringSequence(TimeAlignmentSequence):
             traceback.print_exc()
             import pdb; pdb.set_trace()
 
-        return ([20 + spectrograms,
+        return ([spectrograms,
                  labels,
                  spectrogram_lengths,
                  label_lengths],

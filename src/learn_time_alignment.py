@@ -151,7 +151,7 @@ for e in range(0, 5000, 2):
     # of the actual string sequences. There is likely a better way to do it,
     # but with callbacks, this looked really strange.
     string_data = dataset.ChoppedStringSequence(
-        chunk_size=20, batch_size=1, files=training)
+        chunk_size=20+e, batch_size=1, files=training)
     ctc_model.fit_generator(
         string_data, epochs=e, initial_epoch=old_e,
         callbacks=[tensorboard])
