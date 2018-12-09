@@ -157,7 +157,7 @@ for e in range(0, 5000, 2):
                 xs, paths([xs, [l_x]])[0], labels, l_labels, l_x):
             plt.subplot(4, 3, j)
             target = ''.join(labels_to_text(target[:l]))
-            pred = ''.join(labels_to_text(ys[:l]))
+            pred = ''.join(i or '_' for i in labels_to_text(ys[:l]))
             j += 1
             plt.imshow(x[:lx].T[::-1], vmin=-20, vmax=0,
                        aspect='auto')
