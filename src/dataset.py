@@ -21,7 +21,7 @@ except NameError:
     this = Path("__file__").absolute()
 DATA_PATH = this.parent.parent / "data" / "selection"
 
-SEGMENTS = ['XXX', '*', '2:', '6', '9', '@', 'C', 'E', 'E:',
+SEGMENTS = ['*', '2:', '6', '9', '@', 'C', 'E', 'E:',
             'I', 'I6', 'N', 'O', 'Q', 'S', 'U', 'Y', 'a', 'a:', 'b', 'd',
             'e:', 'f', 'g', 'h', 'i:', 'j', 'k', 'l', 'm', 'n', 'o:', 'p', 'r',
             's', 't', 'u:', 'v', 'x', 'y:', 'z']
@@ -107,7 +107,7 @@ class TimeAlignmentSequence(Sequence):
             dtype=bool)
         for start, end, segment in phonetics.simple_transcript:
             if segment not in SEGMENTS:
-                continue
+                segment = "*"
             start = float(start)
             end = float(end)
             feature_matrix[
