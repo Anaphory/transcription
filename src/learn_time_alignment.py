@@ -12,7 +12,7 @@ import keras
 from keras.models import Model
 from keras.optimizers import Adadelta, SGD
 from keras.activations import sigmoid, softmax
-from keras.layers import Dense, Activation, LSTM, Input, GRU, Bidirectional, Concatenate, Lambda
+from keras.layers import Dense, Activation, LSTM, Input, GRU, Bidirectional, Concatenate, Lambda, SimpleRNN
 from keras.losses import categorical_crossentropy
 from keras.metrics import categorical_accuracy
 from keras.callbacks import TensorBoard
@@ -24,7 +24,8 @@ from hparams import hparams
 import dataset
 
 
-timestamp = datetime.now
+def timestamp():
+    return datetime.now().isoformat()
 
 
 def ctc_lambda_func(args):
@@ -76,9 +77,9 @@ connector = inputs
 
 for l in hparams["n_lstm_hidden"]:
     lstmf, lstmb = Bidirectional(
-        GRU(
+        LSTM(
             units=l,
-            dropout=0.1,
+            dropout=0.05,
             return_sequences=True,
         ), merge_mode=None)(connector)
 
@@ -103,7 +104,7 @@ model.summary()
 # Stick connectionist temporal classification on the end of the core model
 paths = K.function(
     [inputs, input_length],
-    K.ctc_decode(output, input_length[..., 0], greedy=True, top_paths=4)[0])
+    K.ctc_decode(output, input_length[..., 0], greedy=False, top_paths=4)[0])
 
 loss_out = Lambda(
     ctc_lambda_func, output_shape=(1,),
@@ -150,7 +151,7 @@ for e in range(0, 5000, 2):
     # of the actual string sequences. There is likely a better way to do it,
     # but with callbacks, this looked really strange.
     string_data = dataset.ChoppedStringSequence(
-        chunk_size=100 + e, batch_size=1, files=training)
+        chunk_size=20, batch_size=1, files=training)
     ctc_model.fit_generator(
         string_data, epochs=e, initial_epoch=old_e,
         callbacks=[tensorboard])
@@ -159,13 +160,21 @@ for e in range(0, 5000, 2):
     # Do some visual validation
     plt.figure()
     j = 1
-    for i in range(4):
+    for i in range(3):
         (xs, labels, l_x, l_labels), y = string_data[i]
         for x, ys, target, l, lx in zip(
                 xs, paths([xs, l_x])[0], labels, l_labels[..., 0], l_x):
-            plt.subplot(2, 7, j); j += 1
             target = ''.join(labels_to_text(target[:l]))
             pred = ''.join(i or '_' for i in labels_to_text(ys[:l]))
+            plt.subplot(2, 7, j); j += 1
+
+            plt.imshow(x.T, aspect='auto')
+            plt.subplot(2, 7, j); j += 1
+
+            h = K.function([inputs], [connector])([[x]])[0][0]
+            plt.imshow(h.T, aspect='auto')
+            plt.subplot(2, 7, j); j += 1
+
             d = model.predict([[x]])[0]
             plt.imshow(d.T, aspect='auto')
             plt.yticks(ticks=range(len(dataset.SEGMENTS)+1),
@@ -176,5 +185,5 @@ for e in range(0, 5000, 2):
             # plt.xlabel(target)
             plt.text(0, 0, target, horizontalalignment='left', verticalalignment='top')
             plt.text(0, 4, pred, horizontalalignment='left', verticalalignment='top')
-    plt.savefig("{:}/prediction-{:d}.pdf".format(log_dir, e))
+    plt.savefig("{:}/prediction-{:09d}.pdf".format(log_dir, e))
     plt.close()

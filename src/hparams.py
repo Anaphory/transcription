@@ -4,7 +4,7 @@
 
 import argparse
 parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-parser.add_argument("--n-lstm-hidden", default=[100, 100, 150],
+parser.add_argument("--n-lstm-hidden", default=[50],
                     type=lambda x: [int(i) for i in x.split()],
                     help="Hidden layer sizes as whitespace-separated"
                     "list of integers (default: 100 100 150)")
