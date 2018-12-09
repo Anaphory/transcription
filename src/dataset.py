@@ -26,18 +26,6 @@ SEGMENTS = ['*', '2:', '6', '9', '@', 'C', 'E', 'E:',
             'e:', 'f', 'g', 'h', 'i:', 'j', 'k', 'l', 'm', 'n', 'o:', 'p', 'r',
             's', 't', 'u:', 'v', 'x', 'y:', 'z']
 
-def stft_parameters():
-    n_fft = (hparams["n_spectrogram"] - 1) * 2
-    hop_length = int(hparams["frame_shift_ms"] / 1000 * hparams["sample_rate"])
-    win_length = int(hparams["frame_length_ms"] / 1000 * hparams["sample_rate"])
-    return n_fft, hop_length, win_length
-
-
-def stft(signals):
-    n_fft, hop_length, win_length = stft_parameters()
-    return tf.contrib.signal.stft(signals, win_length, hop_length,
-                                  n_fft, pad_end=False)
-
 
 class TimeAlignmentSequence(Sequence):
     def __init__(self, batch_size=10, files=None):
