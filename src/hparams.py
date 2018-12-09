@@ -32,4 +32,5 @@ hparams = {
     "sample_rate": 44100,
     "griffin_lim_iters": 60,
     "max_string_length": 160,
+    "chop": 2,
 }

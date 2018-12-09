@@ -138,7 +138,7 @@ class ToStringSequence(TimeAlignmentSequence):
             for i, file in enumerate(files):
                 ls = self.labels_from_textgrid(
                         file, spectrograms.shape[1])
-                label_lengths[i] = len(ls) or 1
+                label_lengths[i] = len(ls)
                 labels[i][:len(ls)] = ls
         except Exception as e:
             # Keras eats all errors, make sure to at least see them in the console
@@ -175,6 +175,7 @@ class ChoppedStringSequence(TimeAlignmentSequence):
                 chunk = slice(i, i+chunk_size)
                 self.chunks.append((file, chunk))
         self.chunks.sort(key=lambda x: numpy.random.random())
+        self.chunk_size = chunk_size
 
     def __len__(self):
         return -(-len(self.chunks) // self.batch_size)
@@ -183,14 +184,11 @@ class ChoppedStringSequence(TimeAlignmentSequence):
         try:
             data = self.chunks[
                 index * self.batch_size: (index + 1) * self.batch_size]
-            sgs = [
-                numpy.load(file.with_suffix(".npy").open("rb"))[slice]
-                for file, slice in data]
 
             # Set up the output arrays.
             spectrograms = numpy.zeros(
                     (len(data),
-                     max(len(i) for i in sgs),
+                     self.chunk_size,
                      hparams["n_spectrogram"]))
             spectrogram_lengths = numpy.zeros(
                 (len(data), 1),
@@ -204,14 +202,18 @@ class ChoppedStringSequence(TimeAlignmentSequence):
                 dtype=int)
 
 
-            for i, sg in enumerate(zip(sgs, data)):
-                spectrograms[i][:len(sg)] = sg
-                spectrogram_lengths[i] = len(sg)
+            for i, (file, slice) in enumerate(data):
+                sg = numpy.load(file.with_suffix(".npy").open("rb"))
+                s = len(sg[slice])
+                spectrograms[i][:s] = sg[slice]
+                spectrogram_lengths[i] = s
 
                 ls = [k for k, g in itertools.groupby(
                     numpy.argmax(self.features_from_textgrid(
                         file, len(sg)), 1)[slice])]
-                label_lengths[i] = len(ls) or 1
+                if not ls:
+                    raise ValueError
+                label_lengths[i] = len(ls)
                 labels[i][:len(ls)] = ls
 
         except Exception as e:

@@ -29,7 +29,7 @@ timestamp = datetime.now
 
 def ctc_lambda_func(args):
     y_pred, labels, input_length, label_length = args
-    return K.ctc_batch_cost(labels, y_pred, input_length, label_length)
+    return K.ctc_batch_cost(labels, y_pred[:, hparams["chop"]:, :], input_length - hparams["chop"], label_length)
 
 def labels_to_text(labels):
     ret = []
@@ -103,7 +103,7 @@ model.summary()
 # Stick connectionist temporal classification on the end of the core model
 paths = K.function(
     [inputs, input_length],
-    K.ctc_decode(output, input_length[0], greedy=True, top_paths=4)[0])
+    K.ctc_decode(output, input_length[..., 0], greedy=True, top_paths=4)[0])
 
 loss_out = Lambda(
     ctc_lambda_func, output_shape=(1,),
@@ -150,7 +150,7 @@ for e in range(0, 5000, 2):
     # of the actual string sequences. There is likely a better way to do it,
     # but with callbacks, this looked really strange.
     string_data = dataset.ChoppedStringSequence(
-        chunk_size=30+e//4, batch_size=3, files=training)
+        chunk_size=100 + e, batch_size=1, files=training)
     ctc_model.fit_generator(
         string_data, epochs=e, initial_epoch=old_e,
         callbacks=[tensorboard])
@@ -162,7 +162,7 @@ for e in range(0, 5000, 2):
     for i in range(4):
         (xs, labels, l_x, l_labels), y = string_data[i]
         for x, ys, target, l, lx in zip(
-                xs, paths([xs, [l_x]])[0], labels, l_labels, l_x):
+                xs, paths([xs, l_x])[0], labels, l_labels[..., 0], l_x):
             plt.subplot(2, 7, j); j += 1
             target = ''.join(labels_to_text(target[:l]))
             pred = ''.join(i or '_' for i in labels_to_text(ys[:l]))
