@@ -186,31 +186,31 @@ class ChoppedStringSequence(TimeAlignmentSequence):
             sgs = [
                 numpy.load(file.with_suffix(".npy").open("rb"))[slice]
                 for file, slice in data]
-            spectrograms = numpy.zeros(
-                    (len(sgs),
-                     max(len(i) for i in sgs),
-                     len(sgs[-1][-1])))
-            spectrogram_lengths = numpy.zeros(
-                len(sgs),
-                dtype=int)
-            for i, sg in enumerate(sgs):
-                spectrograms[i][:len(sg)] = sg
-                spectrogram_lengths[i] = len(sg)
 
-            files = self.chunks[index * self.batch_size:
-                        	    (index + 1) * self.batch_size]
-            labels = numpy.zeros(
-                (len(spectrograms),
+            # Set up the output arrays.
+            spectrograms = numpy.zeros(
+                    (len(data),
+                     max(len(i) for i in sgs),
+                     hparams["n_spectrogram"]))
+            spectrogram_lengths = numpy.zeros(
+                (len(data), 1),
+                dtype=int)
+            labels = -numpy.ones(
+                (len(data),
                  hparams["max_string_length"]),
                 dtype=int)
             label_lengths = numpy.zeros(
-                len(spectrograms),
+                (len(data), 1),
                 dtype=int)
 
-            for i, (file, slice) in enumerate(files):
+
+            for i, sg in enumerate(zip(sgs, data)):
+                spectrograms[i][:len(sg)] = sg
+                spectrogram_lengths[i] = len(sg)
+
                 ls = [k for k, g in itertools.groupby(
                     numpy.argmax(self.features_from_textgrid(
-                        file, self.sizes[-1]), 1)[slice])]
+                        file, len(sg)), 1)[slice])]
                 label_lengths[i] = len(ls) or 1
                 labels[i][:len(ls)] = ls
 
