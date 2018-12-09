@@ -171,10 +171,6 @@ for e in range(0, 5000, 2):
             plt.imshow(x.T, aspect='auto')
             plt.subplot(2, 7, j); j += 1
 
-            h = K.function([inputs], [connector])([[x]])[0][0]
-            plt.imshow(h.T, aspect='auto')
-            plt.subplot(2, 7, j); j += 1
-
             d = model.predict([[x]])[0]
             plt.imshow(d.T, aspect='auto')
             plt.yticks(ticks=range(len(dataset.SEGMENTS)+1),
