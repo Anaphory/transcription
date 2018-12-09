@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 import itertools
+from datetime import datetime
 
 import numpy
 from matplotlib import pyplot as plt
@@ -14,12 +15,16 @@ from keras.activations import sigmoid, softmax
 from keras.layers import Dense, Activation, LSTM, Input, GRU, Bidirectional, Concatenate, Lambda
 from keras.losses import categorical_crossentropy
 from keras.metrics import categorical_accuracy
+from keras.callbacks import TensorBoard
 
 from keras import backend as K
 
 from hparams import hparams
 
 import dataset
+
+
+timestamp = datetime.now
 
 
 def ctc_lambda_func(args):
@@ -56,7 +61,6 @@ def decode_batch(word_batch, test_func):
                             labels_to_text(out_best)))
     return ret
 
-
 # Define all inputs
 inputs = Input(name='spectrograms',
                shape=(None, hparams["n_spectrogram"]))
@@ -72,7 +76,7 @@ connector = inputs
 
 for l in hparams["n_lstm_hidden"]:
     lstmf, lstmb = Bidirectional(
-        LSTM(
+        GRU(
             units=l,
             dropout=0.1,
             return_sequences=True,
@@ -135,6 +139,10 @@ test_data = dataset.TimeAlignmentSequence(
 
 string_data = dataset.ToStringSequence(batch_size=3, files=training)
 
+# Make a TensorBoard
+log_dir = "log{:}".format(timestamp())
+tensorboard = TensorBoard(log_dir=log_dir)
+
 # Start training, first with time aligned data, then with pure output sequences
 old_e = 0
 for e in range(0, 5000, 2):
@@ -145,7 +153,7 @@ for e in range(0, 5000, 2):
         chunk_size=30+e//4, batch_size=3, files=training)
     ctc_model.fit_generator(
         string_data, epochs=e, initial_epoch=old_e,
-        callbacks=[])
+        callbacks=[tensorboard])
     old_e = e
 
     # Do some visual validation
@@ -155,14 +163,18 @@ for e in range(0, 5000, 2):
         (xs, labels, l_x, l_labels), y = string_data[i]
         for x, ys, target, l, lx in zip(
                 xs, paths([xs, [l_x]])[0], labels, l_labels, l_x):
-            plt.subplot(4, 3, j)
+            plt.subplot(2, 7, j); j += 1
             target = ''.join(labels_to_text(target[:l]))
             pred = ''.join(i or '_' for i in labels_to_text(ys[:l]))
-            j += 1
-            plt.imshow(x[:lx].T[::-1], vmin=-20, vmax=0,
-                       aspect='auto')
-            plt.axis('off')
-            plt.xlabel(target)
+            d = model.predict([[x]])[0]
+            plt.imshow(d.T, aspect='auto')
+            plt.yticks(ticks=range(len(dataset.SEGMENTS)+1),
+                       labels=dataset.SEGMENTS + ["ε"])
+            # plt.imshow(x[:lx].T[::-1], vmin=-20, vmax=0,
+            #           aspect='auto')
+            # plt.axis('off')
+            # plt.xlabel(target)
             plt.text(0, 0, target, horizontalalignment='left', verticalalignment='top')
-            plt.text(0, 100, pred, horizontalalignment='left', verticalalignment='top')
-    plt.savefig("prediction-{:d}.pdf".format(e))
+            plt.text(0, 4, pred, horizontalalignment='left', verticalalignment='top')
+    plt.savefig("{:}/prediction-{:d}.pdf".format(log_dir, e))
+    plt.close()

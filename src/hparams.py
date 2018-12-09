@@ -8,18 +8,18 @@ parser.add_argument("--n-lstm-hidden", default=[100, 100, 150],
                     type=lambda x: [int(i) for i in x.split()],
                     help="Hidden layer sizes as whitespace-separated"
                     "list of integers (default: 100 100 150)")
-parser.add_argument("--n-spectrogram", default=513,
+parser.add_argument("--n-spectrogram", default=1025,
                     type=int,
                     help="Size of the spectrogram, ideally 2^N+1."
                     "(default: 513)")
-parser.add_argument("--frame-length-ms", default=15,
+parser.add_argument("--frame-length-ms", default=5,
                     type=int,
                     help="Length of each window in ms"
-                    "(default: 15)")
-parser.add_argument("--frame-shift-ms", default=5,
+                    "(default: 5)")
+parser.add_argument("--frame-shift-ms", default=3,
                     type=int,
                     help="Distance between two subsequent windows in ms"
-                    "(default: 5)")
+                    "(default: 3)")
 args = parser.parse_args()
 
 hparams = {
@@ -31,5 +31,5 @@ hparams = {
     "prediction_time_at_least_ms": 40,
     "sample_rate": 44100,
     "griffin_lim_iters": 60,
-    "max_string_length": 60,
+    "max_string_length": 160,
 }
