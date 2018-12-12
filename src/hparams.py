@@ -20,6 +20,9 @@ parser.add_argument("--frame-shift-ms", default=3,
                     type=int,
                     help="Distance between two subsequent windows in ms"
                     "(default: 3)")
+parser.add_argument("--model", default='sca',
+                    help="Sound class model to use"
+                    "(default: sca)")
 args = parser.parse_args()
 
 hparams = {
@@ -33,4 +36,5 @@ hparams = {
     "griffin_lim_iters": 60,
     "max_string_length": 160,
     "chop": 2,
+    "model": args.model,
 }

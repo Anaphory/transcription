@@ -22,10 +22,20 @@ except NameError:
 DATA_PATH = this.parent.parent / "data" / "selection"
 
 SEGMENTS = ['*', '2:', '6', '9', '@', 'C', 'E', 'E:',
-            'I', 'I6', 'N', 'O', 'Q', 'S', 'U', 'Y', 'a', 'a:', 'b', 'd',
+            'I', 'N', 'O', 'Q', 'S', 'U', 'Y', 'a', 'a:', 'b', 'd',
             'e:', 'f', 'g', 'h', 'i:', 'j', 'k', 'l', 'm', 'n', 'o:', 'p', 'r',
             's', 't', 'u:', 'v', 'x', 'y:', 'z']
 
+from lingpy.sequence.sound_classes import sampa2uni
+from pyclts import SoundClasses, TranscriptionSystem
+
+system = SoundClasses(hparams["model"])
+SEGMENTS = ['*']  + list(system.classes)
+def lookup_sampa(sampasymbol):
+    try:
+        return SEGMENTS.index(system[sampa2uni(sampasymbol)])
+    except (AssertionError, KeyError):
+        return 0
 
 class TimeAlignmentSequence(Sequence):
     def __init__(self, batch_size=10, files=None):
@@ -94,13 +104,11 @@ class TimeAlignmentSequence(Sequence):
              len(SEGMENTS) + 1),
             dtype=bool)
         for start, end, segment in phonetics.simple_transcript:
-            if segment not in SEGMENTS:
-                segment = "*"
             start = float(start)
             end = float(end)
             feature_matrix[
                 int(start * windows_per_second):int(end * windows_per_second),
-                SEGMENTS.index(segment)] = 1
+                lookup_sampa(segment)] = 1
         return feature_matrix
 
 
@@ -162,7 +170,7 @@ class ToStringSequence(TimeAlignmentSequence):
         feature_matrix = []
         for start, end, segment in phonetics.simple_transcript:
             if float(start) < spectrogram_length / windows_per_second:
-                feature_matrix.append(SEGMENTS.index(segment))
+                feature_matrix.append(lookup_sampa(segment))
         return feature_matrix
 
 
