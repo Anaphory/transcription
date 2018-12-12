@@ -6,6 +6,8 @@ import itertools
 from datetime import datetime
 
 import numpy
+import matplotlib
+matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 
 import keras
