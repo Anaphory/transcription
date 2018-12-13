@@ -20,7 +20,8 @@ def get_table_of_contents(study):
             URL_TEMPLATE.format(study=study)) as v:
         return json.load(v)
 
-for study in ["Germanic"]:
+# https://soundcomparisons.com/query/data?global=True
+for study in [ "Europe", "Germanic", "Englishes", "Romance", "Slavic", "Celtic", "Andean", "Mapudungun", "Brazil", "Malakula" ]:
     for id, form in get_table_of_contents(study)["transcriptions"].items():
         if "Phonetic" in form and "soundPaths" in form:
             if type(form["Phonetic"]) == str:
