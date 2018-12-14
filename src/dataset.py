@@ -2,18 +2,30 @@
 
 """Various sound datasets"""
 
+# General packages
 from pathlib import Path
 import numpy
 import bisect
 import itertools
 
+# Machine learning packages
 import tensorflow as tf
 from keras.utils import Sequence
 from keras.preprocessing.sequence import pad_sequences
 
+# Phonetic transcription packages
+import pyclts
+from segments import Tokenizer, Profile
 import read_textgrid
 
+# ‘Relative’ imports
 from hparams import hparams
+
+bipa = pyclts.TranscriptionSystem('bipa')
+sounds = list(bipa.sounds)
+sounds.extend([])
+tokenizer = Tokenizer(Profile(*({"Grapheme": x, "mapping": x} for x in sounds)))
+
 
 try:
     this = Path(__file__).absolute()
@@ -95,7 +107,7 @@ class TimeAlignmentSequence(Sequence):
 
     @staticmethod
     def features_from_textgrid(file, spectrogram_length):
-        with file.with_suffix(".TextGrid").open() as tr:
+        with file.open() as tr:
             textgrid = read_textgrid.TextGrid(tr.read())
 
         phonetics = textgrid.tiers[0]
@@ -117,7 +129,7 @@ class TimeAlignmentSequence(Sequence):
 
 
 class ChoppedStringSequence(TimeAlignmentSequence):
-    def __init__(self, chunk_size=20, **kwargs):
+    def __init__(self, chunk_size=20, text_only_files=None, **kwargs):
         self.chunks = []
         super().__init__(**kwargs)
         for file, size in zip(self.files, self.sizes):
@@ -126,6 +138,28 @@ class ChoppedStringSequence(TimeAlignmentSequence):
                 self.chunks.append((file, chunk))
         self.chunks.sort(key=lambda x: numpy.random.random())
         self.chunk_size = chunk_size
+
+        if text_only_files is None:
+            text_only_files = DATA_PATH.glob("*.txt")
+        for file in text_only_files:
+            try:
+                sg = numpy.load(file.with_suffix(".npy").open("rb"))
+            except (OSError, FileNotFoundError):
+                from audio_prep import read_audio
+                try:
+                    sg = read_audio(file.with_suffix(".wav"), 'wav')
+                except tf.errors.NotFoundError:
+                    sg = read_audio(file.with_suffix(".ogg"), 'ogg')
+                numpy.save(file.with_suffix(".npy").open("wb"), sg)
+            if len(sg) > chunk_size:
+                continue
+            i = bisect.bisect(self.sizes, len(sg))
+            self.sizes.insert(i, len(sg))
+            self.files.insert(i, file)
+
+        self.index_correction = list(range(len(self)))
+        self.index_correction.sort(key=lambda x: numpy.random.random())
+
 
     def __len__(self):
         return -(-len(self.chunks) // self.batch_size)
@@ -161,13 +195,19 @@ class ChoppedStringSequence(TimeAlignmentSequence):
                     s = hparams["chop"] + 1
                 spectrogram_lengths[i] = s
 
-                for f, feature in enumerate(self.features_from_textgrid(
-                        file, len(sg))):
-                    ls = [k for k, g in itertools.groupby(feature[slice])]
+                if slice.start == 0 and slice.stop > s:
+                    features = self.features_from_text(file, s)
+                else:
+                    features = [k for k, g in itertools.groupby(
+                        self.features_from_textgrid(file, s)[slice])]
+                for f, ls in enumerate(features):
                     if not ls:
                         raise ValueError
                     label_lengths[i] = len(ls)
                     labels[f][i, :len(ls)] = ls
+
+            length = max(spectrogram_lengths)
+            spectrograms = spectrograms[..., :length, :]
 
         except Exception as e:
             # Keras eats all errors, make sure to at least see them in the console
@@ -180,3 +220,30 @@ class ChoppedStringSequence(TimeAlignmentSequence):
                  spectrogram_lengths,
                  label_lengths],
                 [numpy.zeros(len(spectrograms))])
+
+    @staticmethod
+    def features_from_text(file, spectrogram_length):
+        if file.suffix().lower() == '.textgrid':
+            return [k
+                    for k, g in itertools.groupby(
+                            super().features_from_textgrid(
+                                file, spectrogram_length))]
+        elif file.suffix() == ".txt":
+            pass
+        else:
+            raise ValueError(
+                "No method to handle {:} type transcription files".format(
+                    file.suffix()))
+
+        with file.open() as tr:
+            text = tr.read()
+
+        feature_strings = [
+            numpy.zeros(spectrogram_length, dtype=int)
+            for feature in features]
+        for segment in tokenizer(text):
+            for feature_string, value in zip(
+                    feature_strings, lookup_ipa(segment)):
+                feature_string = value
+        return feature_strings
+

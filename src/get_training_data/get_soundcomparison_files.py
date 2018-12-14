@@ -14,6 +14,7 @@ try:
 except NameError:
     PATH = Path("./get_soundcomparison_files.py")
 PATH = PATH.absolute().parent.parent.parent / "data" / "soundcomparisons"
+PATH.mkdir(exist_ok=True)
 
 def get_table_of_contents(study):
     with urllib.request.urlopen(
