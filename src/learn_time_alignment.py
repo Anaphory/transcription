@@ -67,8 +67,9 @@ def decode_batch(word_batch, test_func):
 # Define all inputs
 inputs = Input(name='spectrograms',
                shape=(None, hparams["n_spectrogram"]))
-labels = Input(name='target_labels',
-               shape=[hparams["max_string_length"]], dtype='int64')
+labels = [Input(#name='target_labels',
+                shape=[hparams["max_string_length"]], dtype='int64')
+          for _ in dataset.features]
 input_length = Input(name='len_spectrograms',
                      shape=[1], dtype='int64')
 label_length = Input(name='len_target_labels',
@@ -87,36 +88,40 @@ for l in hparams["n_lstm_hidden"]:
 
     connector = keras.layers.Concatenate(axis=-1)([lstmf, lstmb])
 
-output = Dense(
-    name='framewise_labels',
-    units=len(dataset.SEGMENTS)+1,
+outputs = [Dense(
+    # name='framewise_labels',
+    units=len(f)+1,
     activation=softmax)(connector)
+          for f in dataset.features]
 
 # Compile the core model
 model = Model(
     inputs=[inputs],
-    outputs=[output])
+    outputs=outputs)
 model.compile(
     optimizer=Adadelta(),
-    loss=[categorical_crossentropy],
+    loss=categorical_crossentropy,
     metrics=[categorical_accuracy])
 
 model.summary()
 
 # Stick connectionist temporal classification on the end of the core model
-paths = K.function(
+paths = [K.function(
     [inputs, input_length],
     K.ctc_decode(output, input_length[..., 0], greedy=False, top_paths=4)[0])
+         for output in outputs]
 
-loss_out = Lambda(
+loss_out = [Lambda(
     ctc_lambda_func, output_shape=(1,),
-    name='ctc')([output, labels, input_length, label_length])
+    #name='ctc'
+)([output, label, input_length, label_length])
+            for output, label in zip(outputs, labels)]
 
 ctc_model = Model(
-    inputs=[inputs, labels, input_length, label_length],
-    outputs=[loss_out])
+    inputs=[inputs] + labels + [input_length, label_length],
+    outputs=loss_out)
 ctc_model.compile(
-    loss={'ctc': lambda y_true, y_pred: y_pred},
+    loss=[lambda y_true, y_pred: y_pred for _ in dataset.features],
     optimizer=SGD(
         lr=0.02, decay=1e-6, momentum=0.9, nesterov=True, clipnorm=5))
 
@@ -140,8 +145,6 @@ validation_data = dataset.TimeAlignmentSequence(
 test_data = dataset.TimeAlignmentSequence(
     batch_size=3, files=test)
 
-string_data = dataset.ToStringSequence(batch_size=3, files=training)
-
 # Make a TensorBoard
 log_dir = "log{:}".format(timestamp())
 tensorboard = TensorBoard(log_dir=log_dir)
@@ -163,7 +166,10 @@ for e in range(0, 5000, 2):
     plt.figure(figsize=(8, 35))
     j = 1
     for i in range(7):
-        (xs, labels, l_x, l_labels), y = string_data[i]
+        x, y = string_data[i]
+        xs, labels, l_x, l_labels = x[0], x[1:-2], x[-2], x[-1]
+        labels = labels[0] # Shortcut to get something working
+        paths = paths[0]
         for x, ys, target, l, lx in zip(
                 xs, paths([xs, l_x])[0], labels, l_labels[..., 0], l_x):
             target = ''.join(labels_to_text(target[:l]))
