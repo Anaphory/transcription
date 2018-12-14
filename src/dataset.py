@@ -21,21 +21,20 @@ except NameError:
     this = Path("__file__").absolute()
 DATA_PATH = this.parent.parent / "data" / "selection"
 
-SEGMENTS = ['*', '2:', '6', '9', '@', 'C', 'E', 'E:',
-            'I', 'N', 'O', 'Q', 'S', 'U', 'Y', 'a', 'a:', 'b', 'd',
-            'e:', 'f', 'g', 'h', 'i:', 'j', 'k', 'l', 'm', 'n', 'o:', 'p', 'r',
-            's', 't', 'u:', 'v', 'x', 'y:', 'z']
-
 from lingpy.sequence.sound_classes import sampa2uni
 from pyclts import SoundClasses, TranscriptionSystem
 
-system = SoundClasses(hparams["model"])
-SEGMENTS = ['*']  + list(system.classes)
+systems = [SoundClasses("asjp"),
+           SoundClasses("cv")]
+features = [{c: i for i, c in enumerate(system.classes)}
+            for system in systems]
+
 def lookup_sampa(sampasymbol):
     try:
-        return SEGMENTS.index(system[sampa2uni(sampasymbol)])
+        return [feature[system[sampa2uni(sampasymbol)]]
+                for feature, system in zip(features, systems)]
     except (AssertionError, KeyError):
-        return 0
+        return [0 for feature in features]
 
 class TimeAlignmentSequence(Sequence):
     def __init__(self, batch_size=10, files=None):
@@ -76,14 +75,18 @@ class TimeAlignmentSequence(Sequence):
 
             files = self.files[index * self.batch_size:
                         	   (index + 1) * self.batch_size]
-            feature_values = numpy.zeros(
+            feature_values = [numpy.zeros(
                     (len(spectrograms),
                      len(spectrograms[-1]),
-                     len(SEGMENTS) + 1))
+                     len(f) + 1))
+                              for f in features]
 
             for i, file in enumerate(files):
-                feature_values[i] = self.features_from_textgrid(
-                        file, spectrograms.shape[1])
+                 for feature_matrix, values in zip(
+                         feature_values,
+                         self.features_from_textgrid(
+                             file, spectrograms.shape[1])):
+                     feature_matrix[i][values] = 1
         except Exception as e:
             # Keras eats all errors, make sure to at least see them in the console
             print(e, end="\n\n")
@@ -99,79 +102,18 @@ class TimeAlignmentSequence(Sequence):
 
         windows_per_second = 1000 / hparams["frame_shift_ms"]
 
-        feature_matrix = numpy.zeros(
-            (spectrogram_length,
-             len(SEGMENTS) + 1),
-            dtype=bool)
+        feature_strings = [
+            numpy.zeros(spectrogram_length, dtype=int)
+            for feature in features]
         for start, end, segment in phonetics.simple_transcript:
             start = float(start)
             end = float(end)
-            feature_matrix[
-                int(start * windows_per_second):int(end * windows_per_second),
-                lookup_sampa(segment)] = 1
-        return feature_matrix
-
-
-class ToStringSequence(TimeAlignmentSequence):
-    def __len__(self):
-        return -(-len(self.files) // self.batch_size)
-
-    def __getitem__(self, index):
-        try:
-            sgs = [
-                numpy.load(file.with_suffix(".npy").open("rb"))
-                for file in self.files[
-                        index * self.batch_size: (index + 1) * self.batch_size]]
-            spectrograms = numpy.zeros(
-                    (len(sgs),
-                     len(sgs[-1]),
-                     len(sgs[-1][-1])))
-            spectrogram_lengths = numpy.zeros(
-                len(sgs),
-                dtype=int)
-            for i, sg in enumerate(sgs):
-                spectrograms[i][:len(sg)] = sg
-                spectrogram_lengths[i] = len(sg)
-
-            files = self.files[index * self.batch_size:
-                        	   (index + 1) * self.batch_size]
-            labels = numpy.zeros(
-                (len(spectrograms),
-                 hparams["max_string_length"]),
-                dtype=int)
-            label_lengths = numpy.zeros(
-                len(spectrograms),
-                dtype=int)
-
-            for i, file in enumerate(files):
-                ls = self.labels_from_textgrid(
-                        file, spectrograms.shape[1])
-                label_lengths[i] = len(ls)
-                labels[i][:len(ls)] = ls
-        except Exception as e:
-            # Keras eats all errors, make sure to at least see them in the console
-            print(e, end="\n\n")
-
-        return ([spectrograms,
-                 labels,
-                 spectrogram_lengths,
-                 label_lengths],
-                [numpy.zeros(len(spectrograms))])
-
-    @staticmethod
-    def labels_from_textgrid(file, spectrogram_length=100):
-        with file.with_suffix(".TextGrid").open() as tr:
-            textgrid = read_textgrid.TextGrid(tr.read())
-
-        phonetics = textgrid.tiers[0]
-
-        windows_per_second = 1000 / hparams["frame_shift_ms"]
-
-        feature_matrix = []
-        for start, end, segment in phonetics.simple_transcript:
-            if float(start) < spectrogram_length / windows_per_second:
-                feature_matrix.append(lookup_sampa(segment))
-        return feature_matrix
+            for feature_string, value in zip(
+                    feature_strings, lookup_sampa(segment)):
+                feature_string[
+                    int(start * windows_per_second):
+                    int(end * windows_per_second)] = value
+        return feature_strings
 
 
 class ChoppedStringSequence(TimeAlignmentSequence):
@@ -201,10 +143,11 @@ class ChoppedStringSequence(TimeAlignmentSequence):
             spectrogram_lengths = numpy.zeros(
                 (len(data), 1),
                 dtype=int)
-            labels = -numpy.ones(
+            labels = [-numpy.ones(
                 (len(data),
                  hparams["max_string_length"]),
                 dtype=int)
+                      for _ in features]
             label_lengths = numpy.zeros(
                 (len(data), 1),
                 dtype=int)
@@ -218,13 +161,13 @@ class ChoppedStringSequence(TimeAlignmentSequence):
                     s = hparams["chop"] + 1
                 spectrogram_lengths[i] = s
 
-                ls = [k for k, g in itertools.groupby(
-                    numpy.argmax(self.features_from_textgrid(
-                        file, len(sg)), 1)[slice])]
-                if not ls:
-                    raise ValueError
-                label_lengths[i] = len(ls)
-                labels[i][:len(ls)] = ls
+                for f, feature in enumerate(self.features_from_textgrid(
+                        file, len(sg))):
+                    ls = [k for k, g in itertools.groupby(feature[slice])]
+                    if not ls:
+                        raise ValueError
+                    label_lengths[i] = len(ls)
+                    labels[f][i, :len(ls)] = ls
 
         except Exception as e:
             # Keras eats all errors, make sure to at least see them in the console
@@ -232,8 +175,8 @@ class ChoppedStringSequence(TimeAlignmentSequence):
             traceback.print_exc()
             import pdb; pdb.set_trace()
 
-        return ([spectrograms,
-                 labels,
+        return ([spectrograms] +
+                 labels + [
                  spectrogram_lengths,
                  label_lengths],
                 [numpy.zeros(len(spectrograms))])
