@@ -186,7 +186,6 @@ class ChoppedStringSequence(TimeAlignmentSequence):
                 (len(data), 1),
                 dtype=int)
 
-
             for i, (file, slice) in enumerate(data):
                 sg = numpy.load(file.with_suffix(".npy").open("rb"))
                 s = len(sg[slice])
@@ -196,17 +195,17 @@ class ChoppedStringSequence(TimeAlignmentSequence):
                 spectrogram_lengths[i] = s
 
                 if slice.start == 0 and slice.stop > s:
-                    features = self.features_from_text(file, s)
+                    ft = self.features_from_text(file, s)
                 else:
-                    features = [k for k, g in itertools.groupby(
-                        self.features_from_textgrid(file, s)[slice])]
-                for f, ls in enumerate(features):
+                    ft = [[k for k, g in itertools.groupby(x[slice])]
+                          for x in self.features_from_textgrid(file, len(sg))]
+                for f, ls in enumerate(ft):
                     if not ls:
                         raise ValueError
                     label_lengths[i] = len(ls)
                     labels[f][i, :len(ls)] = ls
 
-            length = max(spectrogram_lengths)
+            length = spectrogram_lengths.max()
             spectrograms = spectrograms[..., :length, :]
 
         except Exception as e:
@@ -219,7 +218,7 @@ class ChoppedStringSequence(TimeAlignmentSequence):
                  labels + [
                  spectrogram_lengths,
                  label_lengths],
-                [numpy.zeros(len(spectrograms))])
+                [numpy.zeros(len(spectrograms)) for _ in features])
 
     @staticmethod
     def features_from_text(file, spectrogram_length):

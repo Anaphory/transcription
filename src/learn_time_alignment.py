@@ -37,10 +37,10 @@ def ctc_lambda_func(args):
 def labels_to_text(labels):
     ret = []
     for c in labels:
-        if c == -1 or c == len(dataset.SEGMENTS):  # CTC Blank
+        if c == -1 or c == len(dataset.features[0]):  # CTC Blank
             ret.append('')
         else:
-            ret.append(dataset.SEGMENTS[c])
+            ret.append(list(dataset.features[0])[c])
     return ret
 
 
@@ -169,9 +169,8 @@ for e in range(0, 5000, 2):
         x, y = string_data[i]
         xs, labels, l_x, l_labels = x[0], x[1:-2], x[-2], x[-1]
         labels = labels[0] # Shortcut to get something working
-        paths = paths[0]
         for x, ys, target, l, lx in zip(
-                xs, paths([xs, l_x])[0], labels, l_labels[..., 0], l_x):
+                xs, paths[0]([xs, l_x])[0], labels, l_labels[..., 0], l_x):
             target = ''.join(labels_to_text(target[:l]))
             pred = ''.join(i or '_' for i in labels_to_text(ys[:l]))
             # plt.imshow(x[:lx].T[::-1], vmin=-20, vmax=0,
@@ -183,10 +182,10 @@ for e in range(0, 5000, 2):
             plt.imshow(x.T, aspect='auto')
 
             plt.subplot(7, 2, j); j += 1
-            d = model.predict([[x]])[0]
+            d = model.predict([[x]])[0][0]
             plt.imshow(d.T, aspect='auto')
-            plt.yticks(ticks=range(len(dataset.SEGMENTS)+1),
-                       labels=dataset.SEGMENTS + ["ε"])
+            plt.yticks(ticks=list(dataset.features[0].values()),
+                       labels=list(dataset.features[0]) + ["ε"])
 
             plt.text(0, 0, target, horizontalalignment='left', verticalalignment='top')
             plt.text(0, 4, pred, horizontalalignment='left', verticalalignment='top')
