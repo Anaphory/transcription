@@ -222,17 +222,17 @@ class ChoppedStringSequence(TimeAlignmentSequence):
 
     @staticmethod
     def features_from_text(file, spectrogram_length):
-        if file.suffix().lower() == '.textgrid':
+        if file.suffix.lower() == '.textgrid':
             return [k
                     for k, g in itertools.groupby(
                             super().features_from_textgrid(
                                 file, spectrogram_length))]
-        elif file.suffix() == ".txt":
+        elif file.suffix == ".txt":
             pass
         else:
             raise ValueError(
                 "No method to handle {:} type transcription files".format(
-                    file.suffix()))
+                    file.suffix))
 
         with file.open() as tr:
             text = tr.read()
