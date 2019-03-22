@@ -19,7 +19,7 @@ PATH.mkdir(exist_ok=True)
 def get_table_of_contents(study):
     with urllib.request.urlopen(
             URL_TEMPLATE.format(study=study)) as v:
-        return json.load(v)
+        return json.loads(v.read().decode("utf-8"))
 
 # https://soundcomparisons.com/query/data?global=True
 for study in [ "Europe", "Germanic", "Englishes", "Romance", "Slavic", "Celtic", "Andean", "Mapudungun", "Brazil", "Malakula" ]:
@@ -42,9 +42,9 @@ for study in [ "Europe", "Germanic", "Englishes", "Romance", "Slavic", "Celtic",
                     continue
                 name = Path(url)
                 with urllib.request.urlopen(url) as remotesoundfile:
-                    with open(PATH / name.name, "wb") as localsoundfile:
+                    with (PATH / name.name).open("wb") as localsoundfile:
                         localsoundfile.write(remotesoundfile.read())
-                with open(PATH / (name.stem + '.txt'), "w") as transcription:
+                with (PATH / (name.stem + '.txt')).open("w") as transcription:
                     transcription.write(ipa)
         else:
             print(id, form.keys())
