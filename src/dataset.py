@@ -15,6 +15,7 @@ from keras.preprocessing.sequence import pad_sequences
 
 # Phonetic transcription packages
 import pyclts
+from feature_sound_class import FeatureSoundClasses
 from segments import Tokenizer, Profile
 import read_textgrid
 
@@ -37,16 +38,24 @@ from lingpy.sequence.sound_classes import sampa2uni
 from pyclts import SoundClasses, TranscriptionSystem
 
 systems = [SoundClasses("asjp"),
+           SoundClasses("sca"),
+           SoundClasses("color"),
+           SoundClasses("dolgo"),
+           FeatureSoundClasses("height"),
+           FeatureSoundClasses("duration"),
            SoundClasses("cv")]
 features = [{c: i for i, c in enumerate(system.classes)}
             for system in systems]
 
-def lookup_sampa(sampasymbol):
+def lookup_ipa(ipasymbol):
     try:
-        return [feature[system[sampa2uni(sampasymbol)]]
+        return [feature[system[ipasymbol]]
                 for feature, system in zip(features, systems)]
     except (AssertionError, KeyError):
         return [0 for feature in features]
+
+def lookup_sampa(sampasymbol):
+    return lookup_ipa(sampa2uni(sampasymbol))
 
 class TimeAlignmentSequence(Sequence):
     def __init__(self, batch_size=10, files=None):
@@ -154,8 +163,7 @@ class ChoppedStringSequence(TimeAlignmentSequence):
             if len(sg) > chunk_size:
                 continue
             i = bisect.bisect(self.sizes, len(sg))
-            self.sizes.insert(i, len(sg))
-            self.files.insert(i, file)
+            self.chunks.append((file, slice(0, len(sg))))
 
         self.index_correction = list(range(len(self)))
         self.index_correction.sort(key=lambda x: numpy.random.random())
@@ -194,7 +202,7 @@ class ChoppedStringSequence(TimeAlignmentSequence):
                     s = hparams["chop"] + 1
                 spectrogram_lengths[i] = s
 
-                if slice.start == 0 and slice.stop > s:
+                if slice.start == 0 and slice.stop >= s:
                     ft = self.features_from_text(file, s)
                 else:
                     ft = [[k for k, g in itertools.groupby(x[slice])]
@@ -205,7 +213,7 @@ class ChoppedStringSequence(TimeAlignmentSequence):
                     label_lengths[i] = len(ls)
                     labels[f][i, :len(ls)] = ls
 
-            length = spectrogram_lengths.max()
+            length = spectrogram_lengths.max(initial=0)
             spectrograms = spectrograms[..., :length, :]
 
         except Exception as e:
@@ -222,27 +230,27 @@ class ChoppedStringSequence(TimeAlignmentSequence):
 
     @staticmethod
     def features_from_text(file, spectrogram_length):
-        if file.suffix().lower() == '.textgrid':
+        if file.suffix.lower() == '.textgrid':
             return [k
                     for k, g in itertools.groupby(
                             super().features_from_textgrid(
                                 file, spectrogram_length))]
-        elif file.suffix() == ".txt":
+        elif file.suffix == ".txt":
             pass
         else:
             raise ValueError(
                 "No method to handle {:} type transcription files".format(
-                    file.suffix()))
+                    file.suffix))
 
         with file.open() as tr:
             text = tr.read()
 
         feature_strings = [
-            numpy.zeros(spectrogram_length, dtype=int)
+            []
             for feature in features]
-        for segment in tokenizer(text):
+        for segment in tokenizer(text).split():
             for feature_string, value in zip(
                     feature_strings, lookup_ipa(segment)):
-                feature_string = value
+                feature_string.append(value)
         return feature_strings
 

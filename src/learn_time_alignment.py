@@ -133,7 +133,7 @@ data_files = [f for f in dataset.DATA_PATH.glob("*.TextGrid")]
 data_files.sort(key=lambda x: numpy.random.random())
 # Inverse floor, in order to get the ceiling operation, to make sure that at least one entry is in the validation set.
 n_test = -int(-0.1 * len(data_files))
-assert len(data_files) > 2 * n_test
+# assert len(data_files) > 2 * n_test
 
 training = data_files[2 * n_test:]
 test = data_files[:n_test]
@@ -156,7 +156,7 @@ for e in range(0, 5000, 2):
     # of the actual string sequences. There is likely a better way to do it,
     # but with callbacks, this looked really strange.
     string_data = dataset.ChoppedStringSequence(
-        chunk_size=20+e, batch_size=1, files=training)
+        chunk_size=200+e, batch_size=1, files=training)
     ctc_model.fit_generator(
         string_data, epochs=e, initial_epoch=old_e,
         callbacks=[tensorboard])

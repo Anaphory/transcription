@@ -19,7 +19,13 @@ PATH.mkdir(exist_ok=True)
 def get_table_of_contents(study):
     with urllib.request.urlopen(
             URL_TEMPLATE.format(study=study)) as v:
-        return json.loads(v.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(
+                URL_TEMPLATE.format(study=study)) as v:
+            return json.loads(v.read().decode("utf-8"))
+    except urllib.error.HTTPError:
+        print("Study {:} not found.".format(study))
+        return {"transcriptions": {}}
 
 # https://soundcomparisons.com/query/data?global=True
 for study in [ "Europe", "Germanic", "Englishes", "Romance", "Slavic", "Celtic", "Andean", "Mapudungun", "Brazil", "Malakula" ]:
@@ -41,11 +47,14 @@ for study in [ "Europe", "Germanic", "Englishes", "Romance", "Slavic", "Celtic",
                 if not ipa:
                     continue
                 name = Path(url)
-                with urllib.request.urlopen(url) as remotesoundfile:
-                    with (PATH / name.name).open("wb") as localsoundfile:
-                        localsoundfile.write(remotesoundfile.read())
-                with (PATH / (name.stem + '.txt')).open("w") as transcription:
-                    transcription.write(ipa)
+                try:
+                    with urllib.request.urlopen(url) as remotesoundfile:
+                        with (PATH / name.name).open("wb") as localsoundfile:
+                            localsoundfile.write(remotesoundfile.read())
+                    with (PATH / (name.stem + '.txt')).open("w") as transcription:
+                        transcription.write(ipa)
+                except urllib.error.HTTPError:
+                    print("Not found:", url)
         else:
             print(id, form.keys())
 
