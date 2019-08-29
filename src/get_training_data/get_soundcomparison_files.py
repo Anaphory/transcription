@@ -5,7 +5,9 @@
 import re
 import json
 from pathlib import Path
+from tqdm import tqdm
 import urllib.request
+
 
 URL_TEMPLATE="https://soundcomparisons.com/query/data?study={study}"
 
@@ -16,46 +18,52 @@ except NameError:
 PATH = PATH.absolute().parent.parent.parent / "data" / "soundcomparisons"
 PATH.mkdir(exist_ok=True)
 
+"https://soundcomparisons.com/export/csv?study=Vanuatu&languages=48700000007,48700000008,48741151109,48741153209,48741155209,48741157409,48741158409,48741322109,48741324209,48741324309,48741326309,48741327409,48741328309,48741328409,48741345109,48741365109,48741367209,48741556509,48741557509,48741557609,48741557709,48741733509,48741733609,48741735809,48741736409,48741736509,48741737809,48741752709,48741752809,48741754509,48741754709,48741754809,48741754909,48741756709,48741756809,48741756909,48741757609,48741758709,48741758809,48741758909,48741953109,48741954109,48741956109,48741957109,48742133509,48742136709,48742137609,48742314209,48742315109,48742315209,48742515109,48742516109,48742516709,48742525109,48742525609,48742535109,48742715209,48742717309,48742718509,48742718709,48742725109,48742733109,48742733409,48742735209,48742738309,48742739309,48742954309,48742954809,48742956509,48742958609,48742977409,48742977509,48743314709,48743316709,48743318409,48743325409,48743325809,48743325909,48743515809,48743535509,48743712809,48743714809,48743716709,48743725609,48743725809,48743735709,48743745709,48743746809,48743755609,48743755709,48743922709,48743923709,48743925809,48743935709,48743942609,48743942809,48743946809,48743957709,48743957809,48743958409,48743959509,48743967709,48743967809,48743974709,48743976409,48743977509,48743982709,48743984509,48743985509,48743985609,48744132309,48744133309,48744134409,48744136709,48744137709,48744145409,48744145509,48744146609,48744147409,48744147509,48744514409,48744514709,48744515509,48744516609,48744545509,48744574609,48744575509,48744585509,48745012309,48745013109,48745015109,48745017709,48745023309,48745025209,48745025609,48762506009,48762508809,48768502009,48768502809,48768503009,48768503809,48768505109,48768506709,48768507809,48768508509,48954353109,48954402409,48954506509,48954604509,48980002709&words=10,20,30,40,50,60,70,80,90,100,110,150,200,210,7010,7020,7030,7040,7050,810,820,7110,7170,7410,7420,7490,7520,7630,7710,7720,7730,7770,7800,7860,7880,7890,7920,7930,7940,7980,7990,2010,2050,2110,2120,2130,2210,2230,2240,2310,2330,2410,2420,2520,2610,2620,2630,2710,2720,2740,2840,4020,4030,4050,4100,4310,4320,4350,4360,3120,3210,3240,3410,3420,3430,3450,3490,3520,3810,3830,3840,3850,5120,5130,5150,5210,6220,5230,5240,6240,6250,6260,6280,6310,6320,5410,5420,5430,5510,5520,5530,5540,5810,5840,5850,5920,5930,6030,6090,6330,6510,6620,6810,8020,8030,8110,8120,8130,8140,8150,8180,8210,8220,8260,8270,8310,8320,8360,8370,8400,8410,8420,8430,8440,8510,8520,8540,8580,8590,8670,8680,8740,8800,8810,8870,8880,8890,8920,8930,8950,8960,8970,9000,9010,9020,9030,9040,9050,9060,9120,9130,9180,9220,9400,9500,9620,1010,1020,1023,1022,1021,1040,1052,1050,1060,1070,1072,1120,1210,1220,1230,1240,1250,1310,1320,1380,1390,1410,5010,5020,510&tsv"
+
 def get_table_of_contents(study):
     with urllib.request.urlopen(
             URL_TEMPLATE.format(study=study)) as v:
-    try:
-        with urllib.request.urlopen(
-                URL_TEMPLATE.format(study=study)) as v:
-            return json.loads(v.read().decode("utf-8"))
-    except urllib.error.HTTPError:
-        print("Study {:} not found.".format(study))
-        return {"transcriptions": {}}
+        try:
+            with urllib.request.urlopen(
+                    URL_TEMPLATE.format(study=study)) as v:
+                return json.loads(v.read().decode("utf-8"))
+        except urllib.error.HTTPError:
+            print("Study {:} not found.".format(study))
+            return {"transcriptions": {}}
 
 # https://soundcomparisons.com/query/data?global=True
-for study in [ "Europe", "Germanic", "Englishes", "Romance", "Slavic", "Celtic", "Andean", "Mapudungun", "Brazil", "Malakula" ]:
-    for id, form in get_table_of_contents(study)["transcriptions"].items():
-        if "Phonetic" in form and "soundPaths" in form:
-            if type(form["Phonetic"]) == str:
-                form["Phonetic"] = [form["Phonetic"]]
-                form["soundPaths"] = [form["soundPaths"]]
-            for ipa, sound_paths in zip(form["Phonetic"],
-                                        form["soundPaths"]):
-                print(id)
-                sound_paths.sort(
-                    key=lambda file:
-                    {"wav": 0, "ogg": 1, "mp3": 2}.get(file[-3:], 3))
-                try:
-                    url = sound_paths[0]
-                except IndexError:
-                    continue
-                if not ipa:
-                    continue
-                name = Path(url)
-                try:
-                    with urllib.request.urlopen(url) as remotesoundfile:
-                        with (PATH / name.name).open("wb") as localsoundfile:
-                            localsoundfile.write(remotesoundfile.read())
-                    with (PATH / (name.stem + '.txt')).open("w") as transcription:
-                        transcription.write(ipa)
-                except urllib.error.HTTPError:
-                    print("Not found:", url)
-        else:
-            print(id, form.keys())
+for study in ["Europe", "Germanic", "Englishes", "Romance", "Slavic", "Celtic", "Andes", "Mapudungun", "Brazil", "Vanuatu"]:
+    print(study)
+    for id, form in tqdm(get_table_of_contents(study)["transcriptions"].items()):
+        if "Phonetic" not in form or "soundPaths" not in form:
+            continue
+        if not form["soundPaths"]:
+            continue
+        if type(form["Phonetic"]) == str:
+            form["Phonetic"] = [form["Phonetic"]]
+        if type(form["soundPaths"]) == str:
+            form["soundPaths"] = [form["soundPaths"]]
+        if type(form["soundPaths"][0]) == str:
+            form["soundPaths"] = [form["soundPaths"]]
+        for ipa, sound_paths in zip(form["Phonetic"], form["soundPaths"]):
+            if not ipa:
+                continue
+            if not sound_paths:
+                continue
+            sound_paths.sort(
+                key=lambda file:
+                {"wav": 0, "ogg": 1, "mp3": 2}.get(file[-3:], 3))
+            url = sound_paths[0]
+            name = Path(url).name
+            if (PATH / name).exists():
+                continue
+            try:
+                with urllib.request.urlopen(url) as remotesoundfile:
+                    with (PATH / name).open("wb") as localsoundfile:
+                        localsoundfile.write(remotesoundfile.read())
+                with (PATH / name).with_suffix(".txt").open("w") as transcription:
+                    transcription.write(ipa)
+            except urllib.error.HTTPError:
+                continue
 
 
