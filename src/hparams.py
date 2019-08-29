@@ -4,7 +4,7 @@
 
 import argparse
 parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-parser.add_argument("--n-lstm-hidden", default=[50],
+parser.add_argument("--n-lstm-hidden", default=[60, 30],
                     type=lambda x: [int(i) for i in x.split()],
                     help="Hidden layer sizes as whitespace-separated"
                     "list of integers (default: 100 100 150)")
@@ -23,7 +23,7 @@ parser.add_argument("--frame-shift-ms", default=3,
 parser.add_argument("--model", default='sca',
                     help="Sound class model to use"
                     "(default: sca)")
-args = parser.parse_args()
+args = parser.parse_args([])
 
 hparams = {
     "n_spectrogram": args.n_spectrogram,

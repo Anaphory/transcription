@@ -34,13 +34,13 @@ def ctc_lambda_func(args):
     y_pred, labels, input_length, label_length = args
     return K.ctc_batch_cost(labels, y_pred[:, hparams["chop"]:, :], input_length - hparams["chop"], label_length)
 
-def labels_to_text(labels):
+def labels_to_text(labels, index=0):
     ret = []
     for c in labels:
-        if c == -1 or c == len(dataset.features[0]):  # CTC Blank
-            ret.append('')
+        if c == -1 or c == len(dataset.features[index]):  # CTC Blank
+            ret.append('.')
         else:
-            ret.append(list(dataset.features[0])[c])
+            ret.append(list(dataset.features[index])[c])
     return ret
 
 
@@ -68,7 +68,7 @@ def decode_batch(word_batch, test_func):
 inputs = Input(name='spectrograms',
                shape=(None, hparams["n_spectrogram"]))
 labels = [Input(#name='target_labels',
-                shape=[hparams["max_string_length"]], dtype='int64')
+                shape=[237], dtype='int64')
           for _ in dataset.features]
 input_length = Input(name='len_spectrograms',
                      shape=[1], dtype='int64')
@@ -108,7 +108,7 @@ model.summary()
 # Stick connectionist temporal classification on the end of the core model
 paths = [K.function(
     [inputs, input_length],
-    K.ctc_decode(output, input_length[..., 0], greedy=False, top_paths=4)[0])
+    K.ctc_decode(output, input_length[..., 0], greedy=True)[0])
          for output in outputs]
 
 loss_out = [Lambda(
@@ -125,9 +125,17 @@ ctc_model.compile(
     optimizer=SGD(
         lr=0.02, decay=1e-6, momentum=0.9, nesterov=True, clipnorm=5))
 
-# Prepare the data
 
-data_files = [f for f in dataset.DATA_PATH.glob("*.TextGrid")]
+# Make a TensorBoard
+log_dir = "log{:}".format(timestamp())
+tensorboard = TensorBoard(log_dir=log_dir)
+
+# Start learning on the whole dataset
+
+# Prepare the data
+data_files = [f.with_suffix(".txt") for f in dataset.DATA_PATH.glob("**/*.txt")
+              if f.with_suffix(".txt").exists()
+              if any([f.with_suffix(audio).exists() for audio in [".ogg", ".oga", ".mp3", ".wav"]])]
 
 # Shuffle the list of files
 data_files.sort(key=lambda x: numpy.random.random())
@@ -135,59 +143,61 @@ data_files.sort(key=lambda x: numpy.random.random())
 n_test = -int(-0.1 * len(data_files))
 # assert len(data_files) > 2 * n_test
 
+N = 50000
+data_files = data_files[:N]
 training = data_files[2 * n_test:]
 test = data_files[:n_test]
 validation = data_files[n_test:2 * n_test]
-time_aligned_data = dataset.TimeAlignmentSequence(
-    batch_size=3, files=training)
-validation_data = dataset.TimeAlignmentSequence(
-    batch_size=3, files=validation)
-test_data = dataset.TimeAlignmentSequence(
-    batch_size=3, files=test)
+transcribed_data = dataset.TranscribedSequence(
+    batch_size=10, files=training)
+validation_data = dataset.TranscribedSequence(
+    batch_size=10, files=validation)
+test_data = dataset.TranscribedSequence(
+    batch_size=10, files=test)
 
-# Make a TensorBoard
-log_dir = "log{:}".format(timestamp())
-tensorboard = TensorBoard(log_dir=log_dir)
+k = len(paths) + 1
 
 # Start training, first with time aligned data, then with pure output sequences
 old_e = 0
-for e in range(0, 5000, 2):
+for e in range(0, 50000, 20):
     # For the purpose of this training sequence, use growing chopped-up parts
     # of the actual string sequences. There is likely a better way to do it,
     # but with callbacks, this looked really strange.
-    string_data = dataset.ChoppedStringSequence(
-        chunk_size=200+e, batch_size=1, files=training)
     ctc_model.fit_generator(
-        string_data, epochs=e, initial_epoch=old_e,
+        transcribed_data, epochs=e, initial_epoch=old_e,
+        shuffle=True,
         callbacks=[tensorboard])
     old_e = e
 
     # Do some visual validation
-    plt.figure(figsize=(8, 35))
+    plt.figure(figsize=(21, 30))
     j = 1
-    for i in range(7):
-        x, y = string_data[i]
-        xs, labels, l_x, l_labels = x[0], x[1:-2], x[-2], x[-1]
-        labels = labels[0] # Shortcut to get something working
-        for x, ys, target, l, lx in zip(
-                xs, paths[0]([xs, l_x])[0], labels, l_labels[..., 0], l_x):
-            target = ''.join(labels_to_text(target[:l]))
-            pred = ''.join(i or '_' for i in labels_to_text(ys[:l]))
-            # plt.imshow(x[:lx].T[::-1], vmin=-20, vmax=0,
-            #           aspect='auto')
-            # plt.axis('off')
-            # plt.xlabel(target)
 
-            plt.subplot(7, 2, j); j += 1
-            plt.imshow(x.T, aspect='auto')
+    index = min(23, len(transcribed_data))
+    x, y = transcribed_data[index]
+    _, transcription = zip(*transcribed_data.human_readable(index))
+    xs, labels, l_x, l_labels = x[0], x[1:-2], x[-2], x[-1]
+    for t, (x, lx) in enumerate(zip(
+            xs, l_x)):
+        if j >= 7 * k:
+            break
 
-            plt.subplot(7, 2, j); j += 1
-            d = model.predict([[x]])[0][0]
+        plt.subplot(7, k, j); j += 1
+        plt.imshow(x.T, aspect='auto')
+
+        plt.text(1, 4, transcription[t], horizontalalignment='left', verticalalignment='top')
+
+        for p, predictor in enumerate(paths):
+            plt.subplot(7, k, j); j += 1
+            pred = ''.join(i or '.' for i in labels_to_text(predictor([[x], [[lx]]])[0][0], p))
+            d = model.predict([[x]])[p][0]
+
+
             plt.imshow(d.T, aspect='auto')
-            plt.yticks(ticks=list(dataset.features[0].values()),
-                       labels=list(dataset.features[0]) + ["ε"])
+            plt.yticks(ticks=list(dataset.features[p].values()),
+                       labels=list(dataset.features[p])+["ε"])
 
-            plt.text(0, 0, target, horizontalalignment='left', verticalalignment='top')
-            plt.text(0, 4, pred, horizontalalignment='left', verticalalignment='top')
+            plt.text(1, 1, ''.join(labels_to_text(labels[p][t], p)), horizontalalignment='left', verticalalignment='top')
+            plt.text(1, 4, pred, horizontalalignment='left', verticalalignment='top')
     plt.savefig("{:}/prediction-{:09d}.pdf".format(log_dir, e))
     plt.close()
